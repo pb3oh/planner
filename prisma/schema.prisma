@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ── Users & Roles ─────────────────────────────────────────────────────────────
+enum Role {
+  super_admin
+  admin
+  user
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(user)
+  teamIds       String[]
+  l0Ids         String[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  frDrafts FRDraft[] @relation("SubmittedBy")
+}
+
+// ── Hierarchy ─────────────────────────────────────────────────────────────────
+model L0 {
+  id          String @id
+  name        String
+  color       String
+  description String @default("")
+  sortOrder   Int    @default(0)
+
+  l1s   L1[]
+  items Item[]
+}
+
+model L1 {
+  id        String @id
+  name      String
+  l0Id      String
+  sortOrder Int    @default(0)
+
+  l0    L0     @relation(fields: [l0Id], references: [id], onDelete: Cascade)
+  teams Team[]
+  items Item[]
+}
+
+model Team {
+  id          String @id
+  name        String
+  l1Id        String
+  description String @default("")
+  sortOrder   Int    @default(0)
+
+  l1    L1     @relation(fields: [l1Id], references: [id], onDelete: Cascade)
+  items Item[]
+}
+
+// ── Planning Items ────────────────────────────────────────────────────────────
+enum ItemStatus {
+  Needs_Review
+  Accepted
+  In_Progress
+  Planned
+  Backlog
+  Out_of_Scope
+  Blocked
+}
+
+enum Priority {
+  P0
+  P1
+  P2
+  P3
+}
+
+model Item {
+  id              Int    @id @default(autoincrement())
+  title           String
+  description     String @default("") @db.Text
+  businessOutcome String @default("") @db.Text
+  successMetric   String @default("")
+  needByDate      String?
+
+  l0Id   String
+  l1Id   String?
+  teamId String?
+
+  status          ItemStatus @default(Needs_Review)
+  priority        Priority   @default(P2)
+  effort          Int        @default(3)
+  effortConfirmed Boolean    @default(false)
+  effortRationale String     @default("")
+  score           Int        @default(60)
+
+  inScope        Boolean  @default(true)
+  scopeReason    String   @default("") @db.Text
+  aiRationale    String   @default("") @db.Text
+  risks          String[]
+  openQuestions  String[]
+  clarifyingAsk  String   @default("")
+  schedulingNote String   @default("")
+
+  startDate String?
+  endDate   String?
+
+  requester   String @default("")
+  requesterBU String @default("")
+  submittedAt String @default("")
+  sourceDoc   String?
+
+  btl Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  l0   L0    @relation(fields: [l0Id], references: [id])
+  l1   L1?   @relation(fields: [l1Id], references: [id])
+  team Team? @relation(fields: [teamId], references: [id])
+
+  @@index([l0Id])
+  @@index([l1Id])
+  @@index([teamId])
+  @@index([status])
+  @@index([btl])
+}
+
+// ── Feature Request Drafts ────────────────────────────────────────────────────
+enum DraftStatus {
+  pending
+  approved
+  rejected
+}
+
+model FRDraft {
+  id               Int         @id @default(autoincrement())
+  title            String      @default("")
+  summary          String      @default("") @db.Text
+  problemStatement String      @default("") @db.Text
+  proposedSolution String      @default("") @db.Text
+  whoItHelps       String      @default("")
+  successMetric    String      @default("")
+  estimatedEffort  String      @default("M")
+  priority         String      @default("P2")
+  requester        String      @default("")
+  rawRequest       String      @default("") @db.Text
+  attachments      Json        @default("[]")
+
+  status        DraftStatus @default(pending)
+  rejectionNote String?
+  approvedAt    String?
+  approvedBy    String?
+  rejectedBy    String?
+
+  submittedByUserId String?
+  submittedByName   String?
+  submittedAt       String  @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submittedBy User? @relation("SubmittedBy", fields: [submittedByUserId], references: [id])
+}
