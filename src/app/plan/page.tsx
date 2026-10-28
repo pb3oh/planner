@@ -5,7 +5,7 @@ import { useHierarchy } from "@/hooks/useHierarchy";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { ScoreRing } from "@/components/ui/ScoreRing";
 import { L0Tag } from "@/components/ui/L0Tag";
-import { EFFORT_SHORT, PRIORITY_META, STATUS_LABEL } from "@/lib/constants";
+import { EFFORT_SHORT, PRIORITY_META } from "@/lib/constants";
 import { fmt } from "@/lib/utils";
 
 type Item = {
@@ -51,7 +51,9 @@ export default function PlanPage() {
     setLoading(false);
   }, [selL0, selL1, selTeam]);
 
-  useEffect(() => { fetchItems(); }, [fetchItems]);
+  // Original list sync: refetch when the hierarchy filters change.
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- keep the shipped fetch-on-filter behavior
+  useEffect(() => { void fetchItems(); }, [fetchItems]);
 
   const l1s = selL0 ? (l0s.find((l) => l.id === selL0)?.l1s ?? []) : [];
   const teams = selL1 ? (l1s.find((l) => l.id === selL1)?.teams ?? []) : [];

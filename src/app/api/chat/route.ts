@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
-import { CLAUDE_MODEL, EFFORT_SHORT } from "@/lib/constants";
-import { fmt, statusLabel } from "@/lib/utils";
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { EFFORT_SHORT } from "@/lib/constants";
+import { complete, taskTag } from "@/lib/llm";
+import { requireUser } from "@/lib/session";
+import { fmt } from "@/lib/utils";
 
 async function buildPlanContext() {
   const l0s = await prisma.l0.findMany({
@@ -44,7 +43,8 @@ Needs Review (${review.length}): ${review.map(fmtItem).join(" | ") || "none"}
 Backlog (${backlog.length}): ${backlog.map(fmtItem).join(" | ") || "none"}`;
   });
 
-  return `You are a VEP planning advisor with full visibility into the VEP dependency plan. VEP serves 62K+ experts (TurboTax Live, QuickBooks Live, Bookkeeping, Payroll, Business Tax).
+  return `${taskTag("chat")}
+You are a planning advisor with full visibility into the current dependency plan.
 
 CURRENT PLAN STATE:
 ${sections.join("\n\n")}
@@ -53,29 +53,29 @@ Your role: Help users understand where a request fits, what trade-offs exist, an
 }
 
 export async function POST(req: NextRequest) {
-  const { messages } = await req.json() as {
+  const { response } = await requireUser();
+  if (response) return response;
+
+  const { messages } = (await req.json()) as {
     messages: { role: string; content: string }[];
   };
 
   const systemPrompt = await buildPlanContext();
+  const normalized = (messages ?? [])
+    .filter((m) => m.content)
+    .map((m) => ({
+      role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
+      content: m.content,
+    }));
 
-  // Build conversation: system context prepended to user turn
-  const lastMessage = messages[messages.length - 1];
-  const prior = messages
-    .slice(0, -1)
-    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+  if (normalized.length === 0) {
+    return NextResponse.json({ error: "messages required" }, { status: 400 });
+  }
 
-  const userContent =
-    prior.length > 0
-      ? `${systemPrompt}\n\nConversation so far:\n${prior.map((m) => `${m.role}: ${m.content}`).join("\n")}\n\n---\nLatest question: ${lastMessage.content}`
-      : `${systemPrompt}\n\n---\nUser question: ${lastMessage.content}`;
-
-  const response = await client.messages.create({
-    model: CLAUDE_MODEL,
-    max_tokens: 1500,
-    messages: [{ role: "user", content: userContent }],
+  const reply = await complete({
+    system: systemPrompt,
+    messages: normalized,
   });
 
-  const reply = response.content.find((b) => b.type === "text")?.text ?? "";
   return NextResponse.json({ reply });
 }

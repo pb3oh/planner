@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Planner
 
-## Getting Started
+Company-neutral prototype of an intake / planning front door: raw requests in, AI-shaped drafts, a review inbox, and a dependency plan.
 
-First, run the development server:
+This repo started as an incomplete Next.js 16 app (missing `src/lib`, components, hooks, and several API routes) with employer-specific sample data. Those pieces are restored here with generic fixtures. No real LLM key is required.
+
+## Stack
+
+- Next.js 16 (App Router) + React 19 + Tailwind 4
+- Prisma 7 + Postgres
+- NextAuth credentials (local users, no OAuth)
+- Pluggable LLM (`LLM_PROVIDER=mock|anthropic`), mock by default
+
+## Run locally
 
 ```bash
+cp .env.example .env
+docker compose up -d db
+npm install
+npm run db:setup
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) and sign in:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Email | Password | Role |
+| --- | --- | --- |
+| `alex.admin@example.com` | `password123` | super_admin |
+| `morgan.pm@example.com` | `password123` | admin |
+| `sam.dev@example.com` | `password123` | user |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### LLM
 
-## Learn More
+- Default: `LLM_PROVIDER=mock` — deterministic, no network.
+- Live model: set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`.
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Next dev server |
+| `npm run build` | Production build |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Vitest unit tests |
+| `npm run db:setup` | `prisma generate && db push && seed` |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Original screens (Phase 0)
 
-## Deploy on Vercel
+These match the pages that shipped in the incomplete tree, plus the missing modules they imported:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Submit** (`/`) — inferred; the intake page that POSTs a raw request for AI shaping was not in the tree
+- **Inbox** (`/inbox`) — FR draft review, approve/reject (admin)
+- **Plan** (`/plan`) — ATL/BTL list, L0/L1/team filters, HTML slide export
+- **Item detail** (`/plan/[id]`) — inline edit, AI evaluate, status/priority/effort
+- **Users** (`/admin/users`) — role + L0/team assignment
+- **Planning Advisor** — bottom chat bar (component was missing; class `cl-bar-input` is required by item detail)
+- **Login** (`/login`) — inferred credentials screen replacing missing OAuth
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See `CLAUDE.md` for architecture notes and what had to be inferred.

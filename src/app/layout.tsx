@@ -20,8 +20,8 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VEP Dependency Planner",
-  description: "VEP Customer Success planning tool — dependency tracking, AI-powered prioritization",
+  title: "Planner",
+  description: "Intake and planning tool — dependency tracking, AI-powered prioritization",
 };
 
 export default function RootLayout({
