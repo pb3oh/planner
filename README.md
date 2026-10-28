@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Planner
 
-## Getting Started
+Company-neutral prototype of an intake / planning front door: raw requests in, AI-shaped drafts, a review inbox, and a dependency plan.
 
-First, run the development server:
+This repo started as an incomplete Next.js 16 app (missing `src/lib`, components, hooks, and several API routes) with employer-specific sample data. Those pieces are restored here with generic fixtures. No real LLM key is required.
+
+## Stack
+
+- Next.js 16 (App Router) + React 19 + Tailwind 4
+- Prisma 7 + Postgres
+- NextAuth credentials (local users, no OAuth)
+- Pluggable LLM (`LLM_PROVIDER=mock|anthropic`), mock by default
+
+## Information architecture (v3.0.0)
+
+Three top-level tabs, matching the original chrome:
+
+| Tab | Route | Who |
+| --- | --- | --- |
+| **Request Work** | `/` | Everyone — intake. AI shapes a raw ask into an FR draft. |
+| **Plan** | `/plan`, `/plan/[id]` | Everyone — the hub. List + item. Phase 1 modules live here (spec, ACs, interview, DoR, tasks, exports, cycle time). |
+| **Inbox** | `/inbox` | Admins only — approve/reject planner-app feature-request drafts. User management is a link inside Inbox (`/admin/users`), not a top-level tab. |
+
+A persistent floating AI chat bar (“Ask the AI Planner anything about the roadmap…”) stays on every authenticated page and is sent the current page/item as context.
+
+## Run locally
 
 ```bash
+cp .env.example .env
+docker compose up -d db
+npm install
+npm run db:setup
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) and sign in:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Email | Password | Role |
+| --- | --- | --- |
+| `alex.admin@example.com` | `password123` | super_admin |
+| `morgan.pm@example.com` | `password123` | admin |
+| `sam.dev@example.com` | `password123` | user |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### LLM
 
-## Learn More
+- Default: `LLM_PROVIDER=mock` — deterministic, no network.
+- Live model: set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`.
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Next dev server |
+| `npm run build` | Production build |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Vitest unit tests |
+| `npm run db:setup` | `prisma generate && db push && seed` |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Phase 1 — spec front door (inside Plan)
 
-## Deploy on Vercel
+On each plan item (`/plan/[id]`), below the original detail cards:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **Spec interview** — AI asks clarifying questions (`POST /api/specs/[id]/interview`). Mock: answer normally, or type `done` to fill a build-ready spec.
+2. **Definition of Ready** — pure gate (`src/lib/gates/definitionOfReady.ts`). Handoff/decompose is blocked until problem, outcome, success metric, scope, non-goals, ACs, risks, and open questions pass.
+3. **Decompose** — splits a ready spec into agent-sized tasks mapped to ACs.
+4. **Export** — OpenSpec markdown, Jira CSV/JSON, Gherkin `.feature`.
+5. **Cycle time** — ItemEvent status transitions, as a Plan list module and on the item.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See `CLAUDE.md` for architecture notes and what had to be inferred.

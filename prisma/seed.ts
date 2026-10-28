@@ -1,6 +1,8 @@
-import { PrismaClient, ItemStatus, Priority } from "@prisma/client";
+import "dotenv/config";
+import { PrismaClient, ItemStatus, Priority, DraftStatus, Role } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { hashPassword } from "../src/lib/password";
 
 function makePrisma() {
   let url = process.env.DATABASE_URL ?? "";
@@ -10,7 +12,9 @@ function makePrisma() {
       const key = u.searchParams.get("api_key") ?? "";
       const decoded = JSON.parse(Buffer.from(key, "base64").toString());
       url = decoded.databaseUrl ?? url;
-    } catch {}
+    } catch {
+      /* keep url */
+    }
   }
   const pool = new Pool({ connectionString: url });
   const adapter = new PrismaPg(pool);
@@ -19,682 +23,492 @@ function makePrisma() {
 
 const prisma = makePrisma();
 
-// ── Hierarchy seed data ───────────────────────────────────────────────────────
 const L0S = [
   {
-    id: "l0_iep",
-    name: "Expert Portal (IEP)",
+    id: "l0_platform",
+    name: "Platform",
     color: "#4f46e5",
-    description: "Expert-facing UI, session tools, AI-native workspace",
+    description: "Core services, identity, developer experience",
     l1s: [
       {
-        id: "l1_iep_eaf",
-        name: "Expert App Foundation",
+        id: "l1_plat_core",
+        name: "Core Services",
         teams: [
-          { id: "t_eaf_aifn", name: "AI Foundations" },
-          { id: "t_eaf_af", name: "App Foundations" },
+          { id: "t_plat_api", name: "API Platform" },
+          { id: "t_plat_id", name: "Identity" },
         ],
       },
       {
-        id: "l1_iep_ews",
-        name: "Expert Workspace",
-        teams: [
-          { id: "t_ews_aifn", name: "AI Foundations" },
-          { id: "t_ews_af", name: "App Foundations" },
-        ],
+        id: "l1_plat_dx",
+        name: "Developer Experience",
+        teams: [{ id: "t_plat_dx", name: "DX" }],
       },
     ],
   },
   {
-    id: "l0_em",
-    name: "Expert Management",
+    id: "l0_growth",
+    name: "Growth",
     color: "#059669",
-    description: "Onboarding, skills, workforce, partner mgmt",
+    description: "Acquisition, activation, lifecycle",
     l1s: [
-      { id: "l1_em_collab", name: "Collaboration", teams: [] },
-      { id: "l1_em_pm", name: "Practice Management", teams: [] },
-      { id: "l1_em_network", name: "Expert Network", teams: [] },
+      {
+        id: "l1_growth_acq",
+        name: "Acquisition",
+        teams: [{ id: "t_growth_acq", name: "Growth Eng" }],
+      },
+      {
+        id: "l1_growth_life",
+        name: "Lifecycle",
+        teams: [{ id: "t_growth_life", name: "Lifecycle" }],
+      },
     ],
   },
   {
-    id: "l0_hi",
-    name: "Human Intelligence",
+    id: "l0_data",
+    name: "Data",
     color: "#7c3aed",
-    description: "Annotation, eval, skills taxonomy, customer context",
+    description: "Analytics, metrics, ML platform",
     l1s: [
-      { id: "l1_hi_eitl", name: "Expert In the Loop", teams: [] },
-      { id: "l1_hi_eval", name: "Expert Evaluation", teams: [] },
-      { id: "l1_hi_skills", name: "Skill Management", teams: [] },
-      { id: "l1_hi_ucc", name: "Universal Customer Context", teams: [] },
+      {
+        id: "l1_data_metrics",
+        name: "Analytics",
+        teams: [{ id: "t_data_metrics", name: "Metrics" }],
+      },
+      {
+        id: "l1_data_ml",
+        name: "ML Platform",
+        teams: [{ id: "t_data_ml", name: "Feature Store" }],
+      },
     ],
   },
   {
-    id: "l0_crm",
-    name: "Enterprise CRM",
+    id: "l0_trust",
+    name: "Trust",
     color: "#0891b2",
-    description: "CRM, routing, sales, incentives",
+    description: "Security, privacy, reliability",
     l1s: [
-      { id: "l1_crm_incentive", name: "Incentive Management", teams: [] },
-      { id: "l1_crm_partner", name: "Partner Management", teams: [] },
-      { id: "l1_crm_analytics", name: "Sales Analytics", teams: [] },
-      { id: "l1_crm_enable", name: "Sales Enablement", teams: [] },
-      { id: "l1_crm_ops", name: "Sales Operations", teams: [] },
+      {
+        id: "l1_trust_sec",
+        name: "Security",
+        teams: [{ id: "t_trust_appsec", name: "AppSec" }],
+      },
+      {
+        id: "l1_trust_sre",
+        name: "Reliability",
+        teams: [{ id: "t_trust_sre", name: "SRE" }],
+      },
     ],
   },
 ];
 
-// ── ATL seed items ────────────────────────────────────────────────────────────
-const SEED_ITEMS = [
+type SeedItem = {
+  id: number;
+  title: string;
+  requester: string;
+  requesterBU: string;
+  l0Id: string;
+  l1Id: string | null;
+  teamId: string | null;
+  status: ItemStatus;
+  effort: number;
+  effortConfirmed: boolean;
+  effortRationale?: string;
+  startDate?: string;
+  endDate?: string;
+  priority: Priority;
+  score: number;
+  description: string;
+  businessOutcome: string;
+  successMetric: string;
+  needByDate?: string;
+  inScope: boolean;
+  scopeReason: string;
+  aiRationale: string;
+  risks: string[];
+  openQuestions: string[];
+  submittedAt: string;
+  sourceDoc?: string | null;
+  btl?: boolean;
+};
+
+const SEED_ITEMS: SeedItem[] = [
   {
     id: 1001,
-    title: "Expert Annotation Quality Dashboard",
-    requester: "Navjot Singh",
-    requesterBU: "VEP / Internal",
-    l0Id: "l0_hi",
-    l1Id: "l1_hi_eitl",
-    teamId: null,
-    status: "In_Progress" as ItemStatus,
-    effort: 2,
+    title: "Workspace SSO for member orgs",
+    requester: "Alex Rivera",
+    requesterBU: "Platform",
+    l0Id: "l0_platform",
+    l1Id: "l1_plat_core",
+    teamId: "t_plat_id",
+    status: "In_Progress",
+    effort: 3,
     effortConfirmed: true,
     startDate: "2026-04-14",
-    endDate: "2026-04-28",
-    priority: "P1" as Priority,
-    score: 76,
+    endDate: "2026-05-12",
+    priority: "P0",
+    score: 88,
     description:
-      "Internal ops dashboard tracking inter-annotator agreement and reviewer override rate for HAS/LaaS.",
-    businessOutcome:
-      "Reduce annotation error rate and provide quality SLA visibility.",
-    successMetric: "IAA > 85%, reviewer override < 10%",
+      "Allow organization admins to require SSO (OIDC) for members, including enforced session timeout.",
+    businessOutcome: "Reduce account-takeover risk and unblock enterprise pilots.",
+    successMetric: "80% of enterprise orgs on SSO within 60 days of GA",
+    needByDate: "2026-05-15",
     inScope: true,
-    scopeReason: "Core HAS/LaaS quality infrastructure.",
-    aiRationale: "Strong fit for HI platform. Low effort, clear metric.",
-    risks: ["Quality targets not yet baselined"],
-    openQuestions: ["What's the current IAA baseline?"],
-    submittedAt: "2026-04-01",
-    sourceDoc: null,
+    scopeReason: "Identity team owns authn surfaces.",
+    aiRationale: "Foundational; unblocks several enterprise deals. High score, confirmed effort.",
+    risks: ["IdP variance across customers"],
+    openQuestions: [],
+    submittedAt: "2026-03-20",
   },
   {
     id: 1002,
-    title: "IEP AI-Native Session Summary MVP",
-    requester: "Nate Bergman",
-    requesterBU: "TurboTax Live (TTL)",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_aifn",
-    status: "Planned" as ItemStatus,
-    effort: 3,
+    title: "Usage-based billing dashboard",
+    requester: "Morgan Lee",
+    requesterBU: "Growth",
+    l0Id: "l0_growth",
+    l1Id: "l1_growth_life",
+    teamId: "t_growth_life",
+    status: "Planned",
+    effort: 4,
     effortConfirmed: false,
-    effortRationale:
-      "Mid-size feature requiring LLM integration and new IEP UI surface. Risk from Core AI dependency.",
+    effortRationale: "Needs metering events from Platform plus a new billing UI.",
     startDate: "2026-05-05",
-    endDate: "2026-06-02",
-    priority: "P1" as Priority,
+    endDate: "2026-06-16",
+    priority: "P1",
     score: 81,
     description:
-      "AI-generated post-engagement summaries surfaced in expert IEP workflow after each session.",
-    businessOutcome: "Reduce expert wrap-up time 30%.",
-    successMetric: "30% wrap time reduction; >70% adoption in 60d",
+      "Self-serve dashboard showing current-period usage, projected invoice, and alert thresholds.",
+    businessOutcome: "Cut billing support tickets and improve expansion conversion.",
+    successMetric: "Billing tickets −40%; expansion CTR +10%",
     needByDate: "2026-06-01",
     inScope: true,
-    scopeReason: "Expert Portal / IEP — VEP owns expert-side UI.",
-    aiRationale: "High customer impact, aligns to IEP AI-native roadmap.",
-    risks: ["Depends on Core AI LLM API"],
-    openQuestions: ["Is Core AI API ready?"],
-    submittedAt: "2026-04-08",
-    sourceDoc: null,
+    scopeReason: "Lifecycle owns customer-facing billing UX.",
+    aiRationale: "Strong outcome, but depends on metering completeness.",
+    risks: ["Metering schema still in flux"],
+    openQuestions: ["Is invoice projection in v1 or v1.1?"],
+    submittedAt: "2026-04-02",
   },
   {
     id: 1003,
-    title: "Expert Availability API for QBL Routing",
-    requester: "Priya Shah",
-    requesterBU: "QuickBooks Live (QBL)",
-    l0Id: "l0_crm",
-    l1Id: "l1_crm_ops",
-    teamId: null,
-    status: "Needs_Review" as ItemStatus,
-    effort: 4,
+    title: "Audit log export API",
+    requester: "Sam Patel",
+    requesterBU: "Trust",
+    l0Id: "l0_trust",
+    l1Id: "l1_trust_sec",
+    teamId: "t_trust_appsec",
+    status: "Needs_Review",
+    effort: 2,
     effortConfirmed: false,
-    effortRationale: "New API surface with real-time latency requirements.",
-    priority: "P2" as Priority,
-    score: 64,
+    effortRationale: "New export endpoint with pagination and cursor auth.",
+    priority: "P1",
+    score: 76,
     description:
-      "Expose real-time expert availability via API for QBL routing to select best-fit experts.",
-    businessOutcome:
-      "Reduce customer wait time by improving routing accuracy.",
-    successMetric: "Routing accuracy +15%, wait time −20%",
-    needByDate: "2026-07-01",
+      "JSON/CSV export of workspace audit events for customer SIEM ingestion.",
+    businessOutcome: "Unblock security reviews for regulated customers.",
+    successMetric: "Export used by 15 design-partner orgs in first month",
+    needByDate: "2026-06-30",
     inScope: true,
-    scopeReason:
-      "Enterprise CRM — VEP owns expert availability and CRM APIs.",
-    aiRationale:
-      "Solid business case but CRM team at capacity through June.",
-    risks: [
-      "CRM capacity constrained",
-      "Latency SLA needs arch review",
-    ],
-    openQuestions: ["Required API response time SLA?"],
-    submittedAt: "2026-04-22",
-    sourceDoc: null,
+    scopeReason: "AppSec owns audit event catalog and export.",
+    aiRationale: "Clear compliance pull. Confirm rate limits before accepting.",
+    risks: ["PII in event payloads"],
+    openQuestions: ["Which event types are in v1?"],
+    submittedAt: "2026-04-18",
   },
   {
     id: 1004,
-    title: "LaaS SOW Intake Form Automation",
-    requester: "Jennifer Crosby",
-    requesterBU: "Expert Network (EN)",
-    l0Id: "l0_hi",
-    l1Id: "l1_hi_eitl",
-    teamId: null,
-    status: "Backlog" as ItemStatus,
-    effort: 2,
+    title: "Search relevance v2",
+    requester: "Jamie Chen",
+    requesterBU: "Data",
+    l0Id: "l0_data",
+    l1Id: "l1_data_ml",
+    teamId: "t_data_ml",
+    status: "In_Progress",
+    effort: 3,
     effortConfirmed: true,
-    priority: "P2" as Priority,
-    score: 58,
+    startDate: "2026-04-01",
+    endDate: "2026-05-20",
+    priority: "P1",
+    score: 79,
     description:
-      "Standardized intake form to auto-generate SOW for labeling requests, targeting <5 day quoting time.",
-    businessOutcome:
-      "Cut LaaS quoting time from ~15 days to <5 days.",
-    successMetric: "Quoting time < 5 days, SOW turnaround < 3 days",
+      "Replace lexical-only search with a hybrid ranker using click signals.",
+    businessOutcome: "Improve findability of saved objects and docs.",
+    successMetric: "Click-through on first 3 results +15%",
     inScope: true,
-    scopeReason: "LaaS demand-side tooling — fits HI/LaaS scope.",
-    aiRationale:
-      "Good strategic fit, but lower urgency vs active annotation work.",
-    risks: ["Requires service design alignment first"],
-    openQuestions: ["Is service design finalized?"],
-    submittedAt: "2026-04-18",
-    sourceDoc: null,
+    scopeReason: "ML Platform owns ranking; search UI stays put.",
+    aiRationale: "In flight. Watch evaluation set quality.",
+    risks: ["Sparse click data on new tenants"],
+    openQuestions: [],
+    submittedAt: "2026-03-12",
   },
   {
     id: 1005,
-    title: "Skills Registry v2 — Structured Taxonomy",
-    requester: "Julia Zhuang",
-    requesterBU: "VEP / Internal",
-    l0Id: "l0_em",
-    l1Id: "l1_em_collab",
-    teamId: null,
-    status: "In_Progress" as ItemStatus,
-    effort: 3,
+    title: "Feature-flag kill switch for agent runs",
+    requester: "Riley Brooks",
+    requesterBU: "Platform",
+    l0Id: "l0_platform",
+    l1Id: "l1_plat_core",
+    teamId: "t_plat_api",
+    status: "Accepted",
+    effort: 2,
     effortConfirmed: true,
-    startDate: "2026-04-01",
-    endDate: "2026-04-28",
-    priority: "P0" as Priority,
-    score: 88,
-    description:
-      "Add structured skills taxonomy to expert profiles enabling routing and matching by skill.",
-    businessOutcome:
-      "Enable skills-based routing, reduce mismatched engagements.",
-    successMetric:
-      "Skills coverage > 80% of active experts; routing accuracy +20%",
-    needByDate: "2026-04-30",
-    inScope: true,
-    scopeReason:
-      "Expert Management — skills registry is core EM infrastructure.",
-    aiRationale:
-      "Foundational work blocking multiple downstream capabilities.",
-    risks: ["Data quality of existing profiles"],
-    openQuestions: [],
-    submittedAt: "2026-03-15",
-    sourceDoc: null,
-  },
-  // AIFN items
-  {
-    id: 2001,
-    title: "AI Native IEP Scaling for AiO — New Engagement Types",
-    requester: "Alex Caron",
-    requesterBU: "TurboTax Live (TTL)",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_aifn",
-    status: "In_Progress" as ItemStatus,
-    effort: 4,
-    effortConfirmed: true,
-    effortRationale:
-      "Scaling AI Native IEP to 4 new QBL engagement types — configurability work on OCG, customer question, and main stage.",
-    startDate: "2026-04-01",
-    endDate: "2026-06-02",
-    priority: "P0" as Priority,
+    startDate: "2026-05-12",
+    endDate: "2026-05-26",
+    priority: "P0",
     score: 90,
     description:
-      "Scale AI Native IEP to new AiO engagement types for QBL: adding configurability to On-Contact, Customer Details, Customer Question, and enabling new icon/tool in command center for appointments.",
-    businessOutcome:
-      "Enable QBL experts on AI Native IEP for new engagement types, unblocking AiO launch.",
-    successMetric:
-      "4 new QBL engagement types live on AI Native IEP by Q4 close",
-    needByDate: "2026-06-02",
+      "Global and per-workspace kill switch that stops new agent runs within 30s.",
+    businessOutcome: "Contain runaway spend and bad-output incidents.",
+    successMetric: "p99 flag propagation < 30s; 0 missed kills in game day",
+    needByDate: "2026-05-30",
     inScope: true,
-    scopeReason:
-      "Core AI Native IEP platform work — AIFN team owns AI foundations of Expert Portal.",
-    aiRationale:
-      "Highest priority AIFN item, directly tied to AiO business launch. Blocking QBL go-live.",
-    risks: [
-      "Dependency on OCG configurability work",
-      "AQnA migration complexity",
-    ],
-    openQuestions: ["Is Core AI AQnA migration gating this?"],
-    submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AIFN - 2026 Q4 Cutline",
+    scopeReason: "API Platform owns runtime control plane.",
+    aiRationale: "Incident-driven P0. Small surface, high leverage.",
+    risks: ["In-flight runs still complete"],
+    openQuestions: [],
+    submittedAt: "2026-04-22",
   },
   {
-    id: 2002,
-    title:
-      "AI Native IEP Platform Supervisor Phase 2 — CoPilot/Main Stage Control",
-    requester: "Alex Caron",
-    requesterBU: "VEP / Internal",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_aifn",
-    status: "In_Progress" as ItemStatus,
-    effort: 5,
-    effortConfirmed: true,
-    effortRationale:
-      "Taking ownership of IEP main stage through Supervisor and invoking OCG as agent. ~60 pts, high complexity.",
-    startDate: "2026-04-01",
-    endDate: "2026-06-16",
-    priority: "P0" as Priority,
-    score: 87,
-    description:
-      "Take ownership of the IEP main stage through the IEP Supervisor and invoke OCG as an agent. Unlocks SER pills and enables main stage convergence.",
-    businessOutcome:
-      "Enable fully agentic main stage, unblocking QBL scaling and 2nd peak AI Native delivery.",
-    successMetric: "IEP Supervisor owns main stage by 2nd peak UAT",
-    needByDate: "2026-05-09",
-    inScope: true,
-    scopeReason:
-      "AIFN owns the AI supervisor layer and main stage architecture.",
-    aiRationale:
-      "Critical infrastructure for 2nd peak. Dependency for QBL AI Native scaling and reactive/proactive use cases.",
-    risks: [
-      "Architecture complexity of multi-agent orchestration",
-      "Dependency on agentic teams contributing",
-    ],
-    openQuestions: ["What teams need to contribute to agentic work?"],
-    submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AIFN - 2026 Q4 Cutline",
-  },
-  {
-    id: 2003,
-    title: "AI Native IEP — 2nd Peak VOE Improvements (Command Center + TOC)",
-    requester: "Alex Caron",
-    requesterBU: "TurboTax Live (TTL)",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_aifn",
-    status: "Planned" as ItemStatus,
+    id: 1006,
+    title: "Onboarding checklist for first workspace",
+    requester: "Casey Nguyen",
+    requesterBU: "Growth",
+    l0Id: "l0_growth",
+    l1Id: "l1_growth_acq",
+    teamId: "t_growth_acq",
+    status: "Planned",
     effort: 2,
     effortConfirmed: true,
-    effortRationale:
-      "Timebox bucket for 1st peak VOE work and command center UI investments. ~15 pts.",
-    startDate: "2026-04-29",
-    endDate: "2026-05-27",
-    priority: "P1" as Priority,
-    score: 79,
+    startDate: "2026-05-19",
+    endDate: "2026-06-02",
+    priority: "P2",
+    score: 68,
     description:
-      "Platform work for 2nd peak VOE: command center logic for tabs (configurable), TOC investments, and P0/P1 items from 1st peak not delivered.",
-    businessOutcome:
-      "Close 1st peak quality gaps, deliver configurable command center for 2nd peak scale.",
-    successMetric: "P0 VOE items resolved ahead of 2nd peak bug bash",
-    needByDate: "2026-05-09",
+      "Guided first-run checklist covering invite, data source, and a sample spec.",
+    businessOutcome: "Lift activation from signup to first value.",
+    successMetric: "D7 activation +12%",
     inScope: true,
-    scopeReason:
-      "AIFN owns command center and AI-native platform investments.",
-    aiRationale:
-      "Required for 2nd peak readiness. Lower effort, high impact on expert experience quality.",
-    risks: ["Scope creep from 1st peak backlog"],
+    scopeReason: "Acquisition owns first-run UX.",
+    aiRationale: "Good growth bet, not on the critical path this month.",
+    risks: ["Checklist copy will churn"],
+    openQuestions: ["Which sample spec do we ship?"],
+    submittedAt: "2026-04-09",
+  },
+  {
+    id: 1007,
+    title: "SLO burn-rate alerts",
+    requester: "Jordan Blake",
+    requesterBU: "Trust",
+    l0Id: "l0_trust",
+    l1Id: "l1_trust_sre",
+    teamId: "t_trust_sre",
+    status: "Backlog",
+    effort: 2,
+    effortConfirmed: true,
+    priority: "P2",
+    score: 64,
+    description: "Page on 2% hour and 5% day error-budget burn for public APIs.",
+    businessOutcome: "Faster detection of customer-visible reliability issues.",
+    successMetric: "MTTD for 5xx incidents −25%",
+    inScope: true,
+    scopeReason: "SRE owns alerting; product surfaces stay unchanged.",
+    aiRationale: "Solid, but capacity is on the kill switch this cycle.",
+    risks: ["Alert fatigue if thresholds are tight"],
     openQuestions: [],
     submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AIFN - 2026 Q4 Cutline",
   },
   {
-    id: 2004,
-    title: "Skill Management / Multi-Model IA Pilot",
-    requester: "Erik Roodsari",
-    requesterBU: "VEP / Internal",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_aifn",
-    status: "Planned" as ItemStatus,
-    effort: 4,
-    effortConfirmed: true,
-    effortRationale:
-      "Build pilot of new model behind IA supporting slash commands. ~60 pts, experimental work.",
-    startDate: "2026-05-05",
-    endDate: "2026-06-16",
-    priority: "P1" as Priority,
-    score: 74,
-    description:
-      "Build a pilot of a new model behind Intuit Assist (IA) supporting slash commands. Multi-model routing pilot in the deterministic framework.",
-    businessOutcome:
-      "Validate multi-model approach for Intuit Assist, enabling skill-based routing improvements.",
-    successMetric:
-      "Pilot live with measurable quality delta vs current model",
-    inScope: true,
-    scopeReason:
-      "AIFN owns IA/OCG model integrations and routing framework.",
-    aiRationale:
-      "Strategic bet on multi-model IA. Medium urgency, high strategic alignment.",
-    risks: [
-      "Model availability from Core AI",
-      "Integration complexity with deterministic framework",
-    ],
-    openQuestions: ["Which model(s) are candidates for the pilot?"],
-    submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AIFN - 2026 Q4 Cutline",
-  },
-  {
-    id: 2005,
-    title: "PS Reporting — Add Sigma Integration",
-    requester: "Erik Roodsari",
-    requesterBU: "VEP / Internal",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_aifn",
-    status: "Backlog" as ItemStatus,
-    effort: 1,
-    effortConfirmed: true,
-    priority: "P2" as Priority,
-    score: 62,
-    description:
-      "Provide access to the conversation pipeline to ingest data into Sigma for running LLMAJ.",
-    businessOutcome:
-      "Enable automated quality evaluation (LLMAJ) via Sigma, reducing manual eval overhead.",
-    successMetric: "LLMAJ running in Sigma within sprint of data availability",
-    inScope: true,
-    scopeReason: "AIFN owns the eval pipeline and quality tooling.",
-    aiRationale:
-      "Enabler for quality automation. Low effort, gated on auto eval completion.",
-    risks: ["Depends on auto eval and human eval completion first"],
-    openQuestions: ["Is auto eval finished?"],
-    submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AIFN - 2026 Q4 Cutline",
-  },
-  // AF items
-  {
-    id: 2101,
-    title: "AiO Manager Items — FOE/BOE Manager Search + Engagement View",
-    requester: "Brian Lederman",
-    requesterBU: "QuickBooks Live (QBL)",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_af",
-    status: "In_Progress" as ItemStatus,
+    id: 1008,
+    title: "Saved-view sharing",
+    requester: "Avery Cole",
+    requesterBU: "Platform",
+    l0Id: "l0_platform",
+    l1Id: "l1_plat_dx",
+    teamId: "t_plat_dx",
+    status: "Needs_Review",
     effort: 3,
-    effortConfirmed: true,
-    startDate: "2026-04-01",
-    endDate: "2026-05-13",
-    priority: "P0" as Priority,
-    score: 85,
-    description:
-      "Enable FOE/BOE Manager search and ability to view engagements for new QBL offerings.",
-    businessOutcome:
-      "Enable QBL manager visibility into new AiO engagement types by May 2026.",
-    successMetric: "Manager search live for QBL FOE/BOE by May deadline",
-    needByDate: "2026-05-01",
+    effortConfirmed: false,
+    effortRationale: "Sharing model plus ACL on views.",
+    priority: "P2",
+    score: 61,
+    description: "Let users share filtered list views with a team or a link.",
+    businessOutcome: "Reduce duplicate setup across teammates.",
+    successMetric: "30% of weekly-active users open a shared view",
     inScope: true,
-    scopeReason:
-      "App Foundations owns engagement list and manager-facing IEP surfaces.",
-    aiRationale:
-      "Hard deadline from QBL AiO launch. Highest priority AF item this cycle.",
-    risks: ["Tight May deadline", "Dependency on QBL engagement list schema"],
-    openQuestions: [],
-    submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AF - 2026 Q4 Cutline",
-  },
-  {
-    id: 2102,
-    title: "Post Call Email Summary for AiO Engagements",
-    requester: "Brian Lederman",
-    requesterBU: "QuickBooks Live (QBL)",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_af",
-    status: "In_Progress" as ItemStatus,
-    effort: 2,
-    effortConfirmed: true,
-    startDate: "2026-04-01",
-    endDate: "2026-05-06",
-    priority: "P0" as Priority,
-    score: 83,
-    description:
-      "Enable post-call email summary for new AiO engagement types.",
-    businessOutcome:
-      "Complete post-call workflow for AiO experts on QBL, improving engagement wrap-up.",
-    successMetric:
-      "Post-call email summary live for AiO engagement types by May",
-    needByDate: "2026-05-01",
-    inScope: true,
-    scopeReason:
-      "App Foundations owns post-call workflow surfaces in IEP.",
-    aiRationale:
-      "Paired with AiO Manager Items — both gated on May QBL launch.",
-    risks: [
-      "Dependency on AiO engagement type schema being finalized",
-    ],
-    openQuestions: ["Is AiO engagement type schema stable?"],
-    submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AF - 2026 Q4 Cutline",
-  },
-  {
-    id: 2103,
-    title:
-      "AI Native IEP — Build Skills for Proactive/Reactive Use Cases (Co-Pilot)",
-    requester: "Erik Roodsari",
-    requesterBU: "VEP / Internal",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_af",
-    status: "Planned" as ItemStatus,
-    effort: 3,
-    effortConfirmed: true,
-    startDate: "2026-04-29",
-    endDate: "2026-06-09",
-    priority: "P1" as Priority,
-    score: 78,
-    description:
-      "Build out skills to introduce into proactive and reactive use cases starting with Refund Status and Apply Discount.",
-    businessOutcome:
-      "Enable expert co-pilot with actionable skills, reducing AHT on high-frequency use cases.",
-    successMetric: "2+ skills live in co-pilot by Q4 close",
-    needByDate: "2026-05-01",
-    inScope: true,
-    scopeReason:
-      "App Foundations owns skill scaffolding and co-pilot platform hosting.",
-    aiRationale:
-      "Strong AHT reduction potential. Paired with AIFN's supervisor phase 2 as dependency.",
-    risks: [
-      "Dependency on AIFN main stage supervisor work",
-      "Skill scope may expand",
-    ],
-    openQuestions: ["Which skills are confirmed for v1?"],
-    submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AF - 2026 Q4 Cutline",
-  },
-  {
-    id: 2113,
-    title: "AiO AI Native Client Info for New QBL Engagement Types",
-    requester: "Brian Lederman",
-    requesterBU: "QuickBooks Live (QBL)",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_af",
-    status: "Planned" as ItemStatus,
-    effort: 2,
-    effortConfirmed: true,
-    startDate: "2026-04-29",
-    endDate: "2026-05-27",
-    priority: "P0" as Priority,
-    score: 82,
-    description:
-      "AI Native Client Info Panel for new QBL AiO engagement types — covers 4 new engagement types launching with AiO.",
-    businessOutcome:
-      "Ensure QBL experts have full client context in AI Native IEP for new engagement types.",
-    successMetric:
-      "Client info live for all 4 QBL AiO engagement types at launch",
-    needByDate: "2026-05-01",
-    inScope: true,
-    scopeReason:
-      "App Foundations owns Client Info Panel and AI Native IEP surfaces.",
-    aiRationale: "Hard May deadline tied to QBL AiO launch. P0.",
-    risks: ["Dependency on AiO engagement schema finalization"],
-    openQuestions: [],
-    submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AF - 2026 Q4 Cutline",
-  },
-  {
-    id: 2011,
-    title: "Finish Auto Eval and Human Eval",
-    requester: "Erik Roodsari",
-    requesterBU: "VEP / Internal",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_aifn",
-    status: "In_Progress" as ItemStatus,
-    effort: 1,
-    effortConfirmed: true,
-    startDate: "2026-04-14",
-    endDate: "2026-04-28",
-    priority: "P1" as Priority,
-    score: 70,
-    description:
-      "Finish auto eval work to speed the evaluation process. Human eval to judge LLMAJ is underway — output will be a golden dataset that feeds into Sigma integration.",
-    businessOutcome:
-      "Enable automated quality evaluation pipeline, reducing manual eval cycle time.",
-    successMetric: "Golden dataset produced; Sigma integration unblocked",
-    inScope: true,
-    scopeReason: "AIFN owns the eval framework and quality tooling.",
-    aiRationale: "Blocking Sigma/reporting work downstream. In progress.",
-    risks: ["Human eval coordination with annotators"],
-    openQuestions: [],
-    submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AIFN - 2026 Q4 Cutline",
+    scopeReason: "DX owns workspace UI chrome.",
+    aiRationale: "Useful but underspecified ACLs. Needs review.",
+    risks: ["Oversharing of private filters"],
+    openQuestions: ["Link vs. named share in v1?"],
+    submittedAt: "2026-04-25",
   },
 ];
 
-// ── BTL seed items ────────────────────────────────────────────────────────────
-const BTL_ITEMS = [
+const BTL_ITEMS: SeedItem[] = [
   {
     id: 3001,
-    title: "Deep-Dive: Remove Ability to Edit Incoming QnA Question",
-    requester: "Alex Caron",
-    requesterBU: "VEP / Internal",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_aifn",
+    title: "Mobile shell spike",
+    requester: "Alex Rivera",
+    requesterBU: "Platform",
+    l0Id: "l0_platform",
+    l1Id: "l1_plat_dx",
+    teamId: "t_plat_dx",
     btl: true,
-    status: "Backlog" as ItemStatus,
-    effort: 1,
+    status: "Backlog",
+    effort: 3,
     effortConfirmed: false,
-    priority: "P2" as Priority,
-    score: 52,
-    description:
-      "Evaluate removing the ability to edit the question for initial QnA given automation test failing and poor expert adoption.",
-    businessOutcome: "Simplify QnA flow, reduce automation failures.",
-    successMetric: "Automation test pass rate improvement",
-    needByDate: "ASAP",
+    priority: "P3",
+    score: 48,
+    description: "Spike a read-only mobile shell for inbox + item detail.",
+    businessOutcome: "Inform whether a mobile surface is warranted next half.",
+    successMetric: "Spike doc with go/no-go",
     inScope: false,
-    scopeReason: "BTL — not committed this quarter.",
-    aiRationale: "Deferred due to capacity.",
+    scopeReason: "Below the line — not committed this quarter.",
+    aiRationale: "Deferred for capacity.",
     risks: [],
     openQuestions: [],
     submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AIFN - 2026 Q4 Cutline",
   },
   {
     id: 3002,
-    title: "Complete AI Workflow Handler — Saves & Dynamic Service Guidance",
-    requester: "Erik Roodsari",
-    requesterBU: "VEP / Internal",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_aifn",
+    title: "Custom report builder",
+    requester: "Jamie Chen",
+    requesterBU: "Data",
+    l0Id: "l0_data",
+    l1Id: "l1_data_metrics",
+    teamId: "t_data_metrics",
     btl: true,
-    status: "Backlog" as ItemStatus,
-    effort: 2,
+    status: "Backlog",
+    effort: 5,
     effortConfirmed: false,
-    priority: "P2" as Priority,
-    score: 58,
-    description:
-      "Complete AI Workflow Handler use cases for Saves and Dynamic Service Guidance.",
-    businessOutcome:
-      "Enable Saves and DSG use cases via AI Workflow Handler.",
-    successMetric:
-      "Workflow handler supporting 2+ use cases in production",
+    priority: "P3",
+    score: 44,
+    description: "Drag-and-drop report builder over the metrics warehouse.",
+    businessOutcome: "Self-serve analytics for team leads.",
+    successMetric: "50 custom reports created by design partners",
     inScope: false,
-    scopeReason: "BTL — not committed this quarter.",
-    aiRationale: "Deferred due to capacity.",
+    scopeReason: "Below the line — not committed this quarter.",
+    aiRationale: "Large bet; wait for warehouse stability.",
     risks: [],
     openQuestions: [],
     submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AIFN - 2026 Q4 Cutline",
-  },
-  {
-    id: 3101,
-    title: "Always On Mobility — Long-Term Solution Spike",
-    requester: "Alex Caron",
-    requesterBU: "VEP / Internal",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_af",
-    btl: true,
-    status: "Backlog" as ItemStatus,
-    effort: 2,
-    effortConfirmed: false,
-    priority: "P2" as Priority,
-    score: 56,
-    description:
-      "Spike for investment in the long-term solution for Always On Mobility (multiple workspaces).",
-    businessOutcome:
-      "Define the architecture for multi-workspace mobility ahead of future quarters.",
-    successMetric:
-      "Spike doc complete with recommended architecture",
-    needByDate: "2026-06-01",
-    inScope: false,
-    scopeReason: "BTL — not committed this quarter.",
-    aiRationale: "Deferred due to capacity.",
-    risks: [],
-    openQuestions: [],
-    submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AF - 2026 Q4 Cutline",
-  },
-  {
-    id: 3105,
-    title: "New Launchpad Shell with AI Components",
-    requester: "Brian Lederman",
-    requesterBU: "VEP / Internal",
-    l0Id: "l0_iep",
-    l1Id: "l1_iep_eaf",
-    teamId: "t_eaf_af",
-    btl: true,
-    status: "Backlog" as ItemStatus,
-    effort: 3,
-    effortConfirmed: false,
-    priority: "P2" as Priority,
-    score: 58,
-    description:
-      "New Launchpad shell with existing AI components including Coach AI, investigations, IA, and training.",
-    businessOutcome:
-      "Modernize Launchpad as the AI-native expert home base.",
-    successMetric:
-      "New Launchpad shell live with AI components present",
-    inScope: false,
-    scopeReason: "BTL — not committed this quarter.",
-    aiRationale: "Deferred due to capacity.",
-    risks: [],
-    openQuestions: [],
-    submittedAt: "2026-04-01",
-    sourceDoc: "Expert Portal L1 Program Binder · AF - 2026 Q4 Cutline",
   },
 ];
 
-const NON_IEP_TEAM_IDS = [
-  "t_em_collab_default", "t_em_pm_default", "t_em_network_ops", "t_em_network_recruit",
-  "t_hi_eitl_annot", "t_hi_eitl_laas", "t_hi_eval_quality", "t_hi_eval_metrics",
-  "t_hi_skills_taxonomy", "t_hi_skills_routing", "t_hi_ucc_default",
-  "t_crm_incentive_default", "t_crm_partner_default", "t_crm_analytics_default",
-  "t_crm_enable_default", "t_crm_ops_routing", "t_crm_ops_platform",
+const DRAFTS: {
+  title: string;
+  summary: string;
+  problemStatement: string;
+  proposedSolution: string;
+  whoItHelps: string;
+  successMetric: string;
+  estimatedEffort: string;
+  priority: string;
+  requester: string;
+  rawRequest: string;
+  status: DraftStatus;
+  submittedAt: string;
+  approvedAt?: string;
+  submittedByEmail: string;
+}[] = [
+  {
+    title: "Per-environment API keys",
+    summary: "Separate live and sandbox keys so customers can test without prod risk.",
+    problemStatement: "A single key is used in prod and staging, so a leaked sandbox key is a prod incident.",
+    proposedSolution: "Issue environment-scoped keys and reject cross-env use.",
+    whoItHelps: "Customer platform engineers",
+    successMetric: "0 cross-env key uses after migration period",
+    estimatedEffort: "S",
+    priority: "P1",
+    requester: "Sam Patel",
+    rawRequest:
+      "We need separate API keys for sandbox vs production. Right now one leaked staging key is a production incident. Please scope keys per environment.",
+    status: "pending",
+    submittedAt: "2026-04-26",
+    submittedByEmail: "sam.dev@example.com",
+  },
+  {
+    title: "Digest email of blocked items",
+    summary: "Weekly mail to DRIs listing items stuck in Blocked or Needs Review.",
+    problemStatement: "Blocked work sits unnoticed until standup.",
+    proposedSolution: "Monday digest with links into the plan.",
+    whoItHelps: "PMs and team leads",
+    successMetric: "Median time-in-Blocked −20%",
+    estimatedEffort: "XS",
+    priority: "P3",
+    requester: "Morgan Lee",
+    rawRequest:
+      "Can we get a weekly email of items that are blocked or still in needs-review so they don't rot?",
+    status: "pending",
+    submittedAt: "2026-04-27",
+    submittedByEmail: "morgan.pm@example.com",
+  },
+  {
+    title: "CSV import for members",
+    summary: "Bulk-add workspace members from a CSV of email + role.",
+    problemStatement: "IT has to click-invite 200 people at a time.",
+    proposedSolution: "Upload CSV, preview diffs, commit invites.",
+    whoItHelps: "IT admins at larger customers",
+    successMetric: "Invite time for 100 users < 5 minutes",
+    estimatedEffort: "M",
+    priority: "P2",
+    requester: "Casey Nguyen",
+    rawRequest: "Need a CSV importer for inviting members with roles. 200 clicks is not a process.",
+    status: "approved",
+    submittedAt: "2026-04-10",
+    approvedAt: "2026-04-12",
+    submittedByEmail: "morgan.pm@example.com",
+  },
+  {
+    title: "Dark mode everywhere",
+    summary: "Theme the entire app dark.",
+    problemStatement: "Some users want dark mode.",
+    proposedSolution: "Full visual redesign in dark tokens.",
+    whoItHelps: "Night-shift operators",
+    successMetric: "50% of users enable dark mode",
+    estimatedEffort: "L",
+    priority: "P3",
+    requester: "Avery Cole",
+    rawRequest: "Please ship dark mode across the product this quarter.",
+    status: "rejected",
+    submittedAt: "2026-04-05",
+    submittedByEmail: "sam.dev@example.com",
+  },
+];
+
+const USERS: { email: string; name: string; role: Role; l0Ids: string[]; teamIds: string[] }[] = [
+  {
+    email: "alex.admin@example.com",
+    name: "Alex Admin",
+    role: "super_admin",
+    l0Ids: ["l0_platform", "l0_growth", "l0_data", "l0_trust"],
+    teamIds: [],
+  },
+  {
+    email: "morgan.pm@example.com",
+    name: "Morgan PM",
+    role: "admin",
+    l0Ids: ["l0_growth", "l0_platform"],
+    teamIds: [],
+  },
+  {
+    email: "sam.dev@example.com",
+    name: "Sam Dev",
+    role: "user",
+    l0Ids: [],
+    teamIds: ["t_plat_api", "t_plat_id"],
+  },
 ];
 
 async function main() {
-  console.log("Cleaning up non-IEP teams…");
-  await prisma.team.deleteMany({ where: { id: { in: NON_IEP_TEAM_IDS } } });
+  console.log("Seeding users…");
+  const passwordHash = hashPassword("password123");
+  const userByEmail = new Map<string, string>();
+  for (const u of USERS) {
+    const row = await prisma.user.upsert({
+      where: { email: u.email },
+      update: { ...u, passwordHash },
+      create: { ...u, passwordHash },
+    });
+    userByEmail.set(u.email, row.id);
+  }
 
   console.log("Seeding hierarchy…");
   for (const l0data of L0S) {
@@ -729,6 +543,100 @@ async function main() {
       update: rest,
       create: { id, ...rest },
     });
+  }
+
+  console.log("Seeding specs…");
+  const ssoReady = {
+    status: "ready" as const,
+    problem:
+      "Organization admins cannot require SSO, so contractors share passwords across workspaces.",
+    outcome: "Admins can enforce SSO for every member of a workspace.",
+    successMetric: "80% of enterprise orgs on SSO within 60 days of GA",
+    scope: "OIDC SSO enforce plus session timeout for members.",
+    nonGoals: "No SCIM provisioning and no IdP-initiated logout in this slice.",
+    constraints: "Must work with the existing session cookie.",
+    risks: ["IdP variance across customers"],
+    openQuestions: [] as string[],
+    readyAt: new Date("2026-04-10"),
+  };
+  const sso = await prisma.spec.upsert({
+    where: { itemId: 1001 },
+    update: ssoReady,
+    create: { itemId: 1001, ...ssoReady },
+  });
+  if ((await prisma.acceptanceCriterion.count({ where: { specId: sso.id } })) === 0) {
+    await prisma.acceptanceCriterion.createMany({
+      data: [
+        {
+          specId: sso.id,
+          sortOrder: 0,
+          given: "an org admin with OIDC configured",
+          when: "they require SSO for members",
+          then: "password login is rejected for members of that org",
+        },
+        {
+          specId: sso.id,
+          sortOrder: 1,
+          given: "a member of an SSO-enforced org",
+          when: "their IdP session expires",
+          then: "they are prompted to re-authenticate via the IdP",
+        },
+      ],
+    });
+  }
+
+  await prisma.spec.upsert({
+    where: { itemId: 1003 },
+    update: {},
+    create: {
+      itemId: 1003,
+      status: "interviewing",
+      problem: "Security reviewers cannot pull workspace audit events into a SIEM.",
+      outcome: "",
+      successMetric: "",
+      scope: "",
+      nonGoals: "",
+      risks: [],
+      openQuestions: ["Which event types are in v1?"],
+    },
+  });
+
+  console.log("Seeding item events…");
+  const eventCount = await prisma.itemEvent.count();
+  if (eventCount === 0) {
+    const rows: {
+      itemId: number;
+      type: string;
+      fromStatus: string | null;
+      toStatus: string;
+      createdAt: Date;
+    }[] = [
+      { itemId: 1001, type: "status_change", fromStatus: null, toStatus: "Needs_Review", createdAt: new Date("2026-03-20") },
+      { itemId: 1001, type: "status_change", fromStatus: "Needs_Review", toStatus: "Accepted", createdAt: new Date("2026-03-28") },
+      { itemId: 1001, type: "status_change", fromStatus: "Accepted", toStatus: "In_Progress", createdAt: new Date("2026-04-14") },
+      { itemId: 1002, type: "status_change", fromStatus: null, toStatus: "Needs_Review", createdAt: new Date("2026-04-02") },
+      { itemId: 1002, type: "status_change", fromStatus: "Needs_Review", toStatus: "Planned", createdAt: new Date("2026-04-20") },
+      { itemId: 1005, type: "status_change", fromStatus: null, toStatus: "Needs_Review", createdAt: new Date("2026-04-22") },
+      { itemId: 1005, type: "status_change", fromStatus: "Needs_Review", toStatus: "Accepted", createdAt: new Date("2026-04-24") },
+    ];
+    for (const row of rows) {
+      await prisma.itemEvent.create({ data: row });
+    }
+  }
+
+  console.log("Seeding drafts…");
+  const existingDrafts = await prisma.fRDraft.count();
+  if (existingDrafts === 0) {
+    for (const d of DRAFTS) {
+      const { submittedByEmail, ...rest } = d;
+      await prisma.fRDraft.create({
+        data: {
+          ...rest,
+          submittedByUserId: userByEmail.get(submittedByEmail),
+          submittedByName: USERS.find((u) => u.email === submittedByEmail)?.name,
+        },
+      });
+    }
   }
 
   console.log("Seed complete.");

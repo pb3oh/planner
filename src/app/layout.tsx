@@ -20,8 +20,8 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VEP Dependency Planner",
-  description: "VEP Customer Success planning tool — dependency tracking, AI-powered prioritization",
+  title: "Planner",
+  description: "Dependency Planner — intake, plan, and inbox for spec-driven work",
 };
 
 export default function RootLayout({
@@ -35,7 +35,7 @@ export default function RootLayout({
         <Providers>
           <HierarchyProvider>
             <Nav />
-            <main className="flex-1 overflow-y-auto pb-24">
+            <main className="flex-1 overflow-y-auto pb-28">
               {children}
             </main>
             <CLBar />

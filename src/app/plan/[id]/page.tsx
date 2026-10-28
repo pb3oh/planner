@@ -4,9 +4,10 @@ import { useParams, useRouter } from "next/navigation";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { ScoreRing } from "@/components/ui/ScoreRing";
 import { L0Tag } from "@/components/ui/L0Tag";
+import { SpecWorkspace } from "@/components/spec/SpecWorkspace";
 import { useHierarchy } from "@/hooks/useHierarchy";
-import { EFFORT_MAP, EFFORT_WEEKS, BU_OPTIONS, STATUS_LABEL, PRIORITY_META, REPROMPT_FIELDS } from "@/lib/constants";
-import { fmt, addWeeks } from "@/lib/utils";
+import { EFFORT_WEEKS, STATUS_LABEL, PRIORITY_META, REPROMPT_FIELDS } from "@/lib/constants";
+import { fmt } from "@/lib/utils";
 
 type Item = {
   id: number; title: string; description: string; businessOutcome: string;
@@ -18,6 +19,7 @@ type Item = {
   effortRationale: string; effortConfirmed: boolean;
   startDate: string | null; endDate: string | null; jiraId: string | null;
   submittedAt: string | null;
+  events?: { id: string; type: string; fromStatus: string | null; toStatus: string | null; createdAt: string }[];
 };
 
 const STATUS_ORDER = ["Needs_Review", "Accepted", "In_Progress", "Planned", "Backlog", "Out_of_Scope", "Blocked"];
@@ -84,7 +86,8 @@ export default function ItemDetailPage() {
   );
 
   const pm = PRIORITY_META[item.priority] ?? PRIORITY_META.P3;
-  const l1s = item.l0Id ? (l0s.find((l) => l.id === item.l0Id)?.l1s ?? []) : [];
+  // L1 options were computed in the original page (picker not rendered).
+  void (item.l0Id ? (l0s.find((l) => l.id === item.l0Id)?.l1s ?? []) : []);
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto", padding: "24px 24px 120px" }}>
@@ -295,7 +298,7 @@ export default function ItemDetailPage() {
         {evaluating && (
           <div style={{ marginTop: 8, fontSize: 11, color: "#6366f1", fontFamily: "var(--font-sans)", display: "flex", gap: 5 }}>
             <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>⟳</span>
-            Claude is re-evaluating…
+            AI is re-evaluating…
           </div>
         )}
       </div>
@@ -408,21 +411,25 @@ export default function ItemDetailPage() {
           <button
             onClick={() => {
               // Focus the CLBar input
-              const el = document.querySelector<HTMLTextAreaElement>(".cl-bar-input");
+              const el = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(".cl-bar-input");
               if (el) { el.focus(); el.value = `Tell me about item #${item.id}: ${item.title}`; el.dispatchEvent(new Event("input", { bubbles: true })); }
             }}
             style={{ flex: 1, padding: "9px 0", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "#fff", color: "#475569", border: "1px solid #e2e8f0", cursor: "pointer", fontFamily: "var(--font-sans)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
           >
-            <span style={{ color: "#6366f1" }}>ℹ</span> Ask Planning Advisor about this item
+            <span style={{ color: "#6366f1" }}>ℹ</span> Ask the AI Planner about this item
           </button>
           <button
-            onClick={() => window.open(`https://jira.intuit.com/browse/${item.jiraId ?? ""}`, "_blank")}
+            onClick={() => {
+              if (item.jiraId) window.open(`#jira/${item.jiraId}`, "_blank");
+            }}
             style={{ flex: 1, padding: "9px 0", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "#1d4ed8", color: "#fff", border: "none", cursor: "pointer", fontFamily: "var(--font-sans)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
           >
             <span>◆</span> Push to Jira →
           </button>
         </div>
       </div>
+
+      <SpecWorkspace itemId={item.id} events={item.events ?? []} />
     </div>
   );
 }
