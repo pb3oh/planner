@@ -230,6 +230,27 @@ function decomposeReply(system: string | undefined): string {
   return JSON.stringify({ tasks });
 }
 
+function chatReply(system: string | undefined, user: string): string {
+  const view = (section(system, "CURRENT_VIEW") || "the current page").split("\n")[0].trim();
+  const item = (section(system, "CURRENT_ITEM") || "").split("\n")[0].trim();
+  return [
+    "Based on the current plan (mock advisor):",
+    `View: ${view}`,
+    item ? `Focused item: ${item}` : null,
+    user
+      ? `You asked: "${user.slice(0, 200)}"`
+      : "Ask about an item id, a team, or what would need to be true to pull something above the line.",
+    "",
+    item
+      ? `For "this item" I am using ${item.split(" status=")[0] || item}.`
+      : "No plan item is focused — name an [id] or open an item in Plan.",
+    "I can point at trade-offs (effort, dates, score) without committing a team. Reference items by [id].",
+    "Switch LLM_PROVIDER=anthropic and set ANTHROPIC_API_KEY for a live model.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export const mockProvider: LLMProvider = {
   id: "mock",
   async complete(options: CompleteOptions): Promise<string> {
@@ -247,15 +268,7 @@ export const mockProvider: LLMProvider = {
         return decomposeReply(options.system);
       case "chat":
       default:
-        return [
-          "Based on the current plan (mock advisor):",
-          user
-            ? `You asked: "${user.slice(0, 200)}"`
-            : "Ask about an item id, a team, or what would need to be true to pull something above the line.",
-          "",
-          "I can point at trade-offs (effort, dates, score) without committing a team. Reference items by [id].",
-          "Switch LLM_PROVIDER=anthropic and set ANTHROPIC_API_KEY for a live model.",
-        ].join("\n");
+        return chatReply(options.system, user);
     }
   },
 };

@@ -208,6 +208,21 @@ export default function AdminUsersPage() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
         <div>
+          <button
+            onClick={() => router.push("/inbox")}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 13,
+              color: "#64748b",
+              fontFamily: "var(--font-sans)",
+              padding: 0,
+              marginBottom: 8,
+            }}
+          >
+            ← Inbox
+          </button>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#0f172a" }}>User Management</h1>
           <p style={{ fontSize: 13, color: "#64748b", margin: "4px 0 0" }}>
             {users.length} user{users.length !== 1 ? "s" : ""}

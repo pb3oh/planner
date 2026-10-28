@@ -411,12 +411,12 @@ export default function ItemDetailPage() {
           <button
             onClick={() => {
               // Focus the CLBar input
-              const el = document.querySelector<HTMLTextAreaElement>(".cl-bar-input");
+              const el = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(".cl-bar-input");
               if (el) { el.focus(); el.value = `Tell me about item #${item.id}: ${item.title}`; el.dispatchEvent(new Event("input", { bubbles: true })); }
             }}
             style={{ flex: 1, padding: "9px 0", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "#fff", color: "#475569", border: "1px solid #e2e8f0", cursor: "pointer", fontFamily: "var(--font-sans)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
           >
-            <span style={{ color: "#6366f1" }}>ℹ</span> Ask Planning Advisor about this item
+            <span style={{ color: "#6366f1" }}>ℹ</span> Ask the AI Planner about this item
           </button>
           <button
             onClick={() => {

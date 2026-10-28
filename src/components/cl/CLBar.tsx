@@ -1,10 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 type Msg = { role: "user" | "assistant"; content: string };
+
+function pageLabel(pathname: string): string {
+  if (pathname === "/") return "request-work";
+  if (pathname === "/plan") return "plan-list";
+  if (pathname.startsWith("/plan/")) return "plan-item";
+  if (pathname.startsWith("/inbox")) return "inbox";
+  if (pathname.startsWith("/admin")) return "admin-users";
+  return pathname;
+}
 
 export function CLBar() {
   const pathname = usePathname();
@@ -13,6 +22,16 @@ export function CLBar() {
   const [text, setText] = useState("");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [sending, setSending] = useState(false);
+
+  const context = useMemo(() => {
+    const itemMatch = pathname.match(/^\/plan\/(\d+)/);
+    const itemId = itemMatch ? Number(itemMatch[1]) : null;
+    return {
+      pathname,
+      page: pageLabel(pathname),
+      itemId,
+    };
+  }, [pathname]);
 
   if (pathname === "/login" || status !== "authenticated") return null;
 
@@ -28,7 +47,7 @@ export function CLBar() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next }),
+        body: JSON.stringify({ messages: next, context }),
       });
       const data = (await res.json()) as { reply?: string; error?: string };
       setMessages([
@@ -52,21 +71,26 @@ export function CLBar() {
     <div
       style={{
         position: "fixed",
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 30,
-        background: "#fff",
-        borderTop: "1px solid #e2e8f0",
-        boxShadow: "0 -8px 24px rgba(15,23,42,0.04)",
+        left: "50%",
+        bottom: 18,
+        transform: "translateX(-50%)",
+        width: "min(640px, calc(100vw - 32px))",
+        zIndex: 40,
+        pointerEvents: "none",
       }}
     >
       {open && messages.length > 0 && (
         <div
           style={{
-            maxHeight: 260,
+            pointerEvents: "auto",
+            maxHeight: 280,
             overflowY: "auto",
-            padding: "12px 20px 0",
+            marginBottom: 10,
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 16,
+            padding: "12px 14px",
+            boxShadow: "0 12px 40px rgba(15,23,42,0.12)",
             display: "flex",
             flexDirection: "column",
             gap: 8,
@@ -77,11 +101,11 @@ export function CLBar() {
               key={i}
               style={{
                 alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                maxWidth: 640,
-                background: m.role === "user" ? "#1d4ed8" : "#f8fafc",
+                maxWidth: "90%",
+                background: m.role === "user" ? "#2563eb" : "#f8fafc",
                 color: m.role === "user" ? "#fff" : "#334155",
                 border: m.role === "user" ? "none" : "1px solid #e2e8f0",
-                borderRadius: 10,
+                borderRadius: 12,
                 padding: "8px 12px",
                 fontSize: 13,
                 lineHeight: 1.5,
@@ -99,37 +123,55 @@ export function CLBar() {
           )}
         </div>
       )}
+
       <div
         style={{
+          pointerEvents: "auto",
           display: "flex",
-          alignItems: "flex-end",
+          alignItems: "center",
           gap: 8,
-          padding: "10px 16px 12px",
-          maxWidth: 960,
-          margin: "0 auto",
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 999,
+          padding: "6px 6px 6px 6px",
+          boxShadow: "0 10px 32px rgba(15,23,42,0.12)",
         }}
       >
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              color: "#94a3b8",
-              letterSpacing: 0.6,
-              textTransform: "uppercase",
-              fontFamily: "var(--font-sans)",
-              marginBottom: 4,
-            }}
-          >
-            Planning Advisor
-          </div>
-          <textarea
+        <button
+          type="button"
+          aria-label={messages.length ? "New chat" : "Focus AI planner"}
+          onClick={() => {
+            if (messages.length) {
+              setMessages([]);
+              setOpen(false);
+            }
+            document.querySelector<HTMLInputElement>(".cl-bar-input")?.focus();
+          }}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: "50%",
+            border: "none",
+            background: "#2563eb",
+            color: "#fff",
+            fontSize: 20,
+            lineHeight: 1,
+            cursor: "pointer",
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          +
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <input
             className="cl-bar-input"
-            rows={1}
             value={text}
-            placeholder="Ask about the plan, an item, or a trade-off…"
+            placeholder="Ask the AI Planner anything about the roadmap…"
             onChange={(e) => setText(e.target.value)}
-            onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
+            onInput={(e) => setText((e.target as HTMLInputElement).value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -138,48 +180,45 @@ export function CLBar() {
             }}
             style={{
               width: "100%",
-              resize: "none",
-              border: "1px solid #e2e8f0",
-              borderRadius: 8,
-              padding: "8px 10px",
-              fontSize: 13,
-              fontFamily: "var(--font-sans)",
+              border: "none",
               outline: "none",
+              fontSize: 14,
+              fontFamily: "var(--font-sans)",
               color: "#0f172a",
+              background: "transparent",
+              padding: "4px 6px",
               boxSizing: "border-box",
             }}
           />
         </div>
         <button
-          onClick={() => setOpen((o) => !o)}
-          style={{
-            background: "none",
-            border: "none",
-            color: "#94a3b8",
-            cursor: "pointer",
-            fontSize: 12,
-            padding: "8px 4px",
-            fontFamily: "var(--font-sans)",
-          }}
-        >
-          {open ? "Hide" : "Show"}
-        </button>
-        <button
+          type="button"
+          aria-label="Send"
           onClick={() => void send()}
           disabled={sending || !text.trim()}
           style={{
-            padding: "8px 14px",
-            borderRadius: 8,
-            fontSize: 13,
-            fontWeight: 600,
-            background: sending || !text.trim() ? "#e2e8f0" : "#1d4ed8",
-            color: sending || !text.trim() ? "#94a3b8" : "#fff",
+            width: 36,
+            height: 36,
+            borderRadius: "50%",
             border: "none",
+            background: sending || !text.trim() ? "#f1f5f9" : "#2563eb",
+            color: sending || !text.trim() ? "#94a3b8" : "#fff",
             cursor: sending || !text.trim() ? "default" : "pointer",
-            fontFamily: "var(--font-sans)",
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          Send
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M8 12.5V3.5M8 3.5L3.5 8M8 3.5L12.5 8"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </button>
       </div>
     </div>

@@ -28,6 +28,23 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  if (pathname.startsWith("/cycle-time")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/plan";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  if (pathname.startsWith("/inbox") || pathname.startsWith("/admin")) {
+    const role = token.role;
+    if (role !== "admin" && role !== "super_admin") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/plan";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return NextResponse.next();
 }
 

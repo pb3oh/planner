@@ -1,5 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { fmt } from "@/lib/utils";
 
@@ -19,18 +21,26 @@ type FRDraft = {
 };
 
 export default function InboxPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [drafts, setDrafts] = useState<FRDraft[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"pending" | "approved" | "rejected">("pending");
   const [acting, setActing] = useState<number | null>(null);
 
+  const isAdmin = session?.user?.role === "admin" || session?.user?.role === "super_admin";
+
   useEffect(() => {
+    if (status === "loading") return;
+    if (!isAdmin) {
+      router.replace("/plan");
+      return;
+    }
     fetch("/api/drafts")
       .then((r) => r.json())
-      .then((data) => { setDrafts(data); setLoading(false); })
+      .then((data) => { setDrafts(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [status, isAdmin, router]);
 
   async function decide(id: number, status: "approved" | "rejected") {
     setActing(id);
@@ -44,8 +54,6 @@ export default function InboxPage() {
     setActing(null);
   }
 
-  const isAdmin = session?.user?.role === "admin" || session?.user?.role === "super_admin";
-
   const filtered = drafts.filter((d) => d.status === filter);
 
   const counts = {
@@ -54,16 +62,43 @@ export default function InboxPage() {
     rejected: drafts.filter((d) => d.status === "rejected").length,
   };
 
+  if (status === "loading" || !isAdmin) {
+    return (
+      <div style={{ padding: 60, textAlign: "center", color: "#94a3b8", fontFamily: "var(--font-sans)" }}>
+        Loading…
+      </div>
+    );
+  }
+
   return (
     <div style={{ maxWidth: 860, margin: "0 auto", padding: "28px 24px" }}>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0f172a", fontFamily: "var(--font-sans)", margin: 0 }}>
-          Inbox
-        </h1>
-        <p style={{ fontSize: 12, color: "#94a3b8", margin: "2px 0 0", fontFamily: "var(--font-sans)" }}>
-          FR draft review queue{isAdmin ? " — admin view" : ""}
-        </p>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0f172a", fontFamily: "var(--font-sans)", margin: 0 }}>
+            Inbox
+          </h1>
+          <p style={{ fontSize: 12, color: "#94a3b8", margin: "2px 0 0", fontFamily: "var(--font-sans)" }}>
+            Feature requests for the planner — approve to create a plan item
+          </p>
+        </div>
+        <Link
+          href="/admin/users"
+          style={{
+            padding: "7px 12px",
+            borderRadius: 8,
+            fontSize: 12,
+            fontWeight: 600,
+            color: "#1d4ed8",
+            background: "#eff6ff",
+            border: "1px solid #bfdbfe",
+            textDecoration: "none",
+            fontFamily: "var(--font-sans)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Manage users
+        </Link>
       </div>
 
       {/* Filter tabs */}

@@ -5,6 +5,7 @@ import { useHierarchy } from "@/hooks/useHierarchy";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { ScoreRing } from "@/components/ui/ScoreRing";
 import { L0Tag } from "@/components/ui/L0Tag";
+import { CycleTimeBoard } from "@/components/plan/CycleTimeBoard";
 import { EFFORT_SHORT, PRIORITY_META } from "@/lib/constants";
 import { fmt } from "@/lib/utils";
 
@@ -34,6 +35,7 @@ export default function PlanPage() {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [btlOpen, setBtlOpen] = useState(false);
+  const [module, setModule] = useState<"items" | "cycle-time">("items");
 
   const [selL0, setSelL0] = useState<string | null>(null);
   const [selL1, setSelL1] = useState<string | null>(null);
@@ -107,11 +109,37 @@ export default function PlanPage() {
           </p>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", gap: 4, background: "#f1f5f9", padding: 4, borderRadius: 8 }}>
+            {([
+              ["items", "Items"],
+              ["cycle-time", "Cycle time"],
+            ] as const).map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setModule(id)}
+                style={{
+                  padding: "5px 12px",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  background: module === id ? "#fff" : "transparent",
+                  color: module === id ? "#0f172a" : "#64748b",
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-sans)",
+                  boxShadow: module === id ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {exportError && (
             <span style={{ fontSize: 12, color: "#ef4444", fontFamily: "var(--font-sans)", maxWidth: 220 }}>
               {exportError}
             </span>
           )}
+          {module === "items" && (
           <button
             onClick={handleExport}
             disabled={exporting}
@@ -138,9 +166,14 @@ export default function PlanPage() {
             )}
             Generate Slides
           </button>
+          )}
         </div>
       </div>
 
+      {module === "cycle-time" ? (
+        <CycleTimeBoard />
+      ) : (
+      <>
       {/* 3-tier filter bar */}
       <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
         {/* L0 pills */}
@@ -289,6 +322,8 @@ export default function PlanPage() {
             </div>
           )}
         </div>
+      )}
+      </>
       )}
     </div>
   );

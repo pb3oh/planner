@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireAdmin, requireUser } from "@/lib/session";
 import { complete, extractJson, taskTag } from "@/lib/llm";
 import { todayIso } from "@/lib/utils";
 
@@ -9,7 +9,7 @@ const draftInclude = {
 } as const;
 
 export async function GET() {
-  const { response } = await requireUser();
+  const { response } = await requireAdmin();
   if (response) return response;
   const drafts = await prisma.fRDraft.findMany({
     include: draftInclude,

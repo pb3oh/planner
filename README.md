@@ -11,6 +11,18 @@ This repo started as an incomplete Next.js 16 app (missing `src/lib`, components
 - NextAuth credentials (local users, no OAuth)
 - Pluggable LLM (`LLM_PROVIDER=mock|anthropic`), mock by default
 
+## Information architecture (v3.0.0)
+
+Three top-level tabs, matching the original chrome:
+
+| Tab | Route | Who |
+| --- | --- | --- |
+| **Request Work** | `/` | Everyone — intake. AI shapes a raw ask into an FR draft. |
+| **Plan** | `/plan`, `/plan/[id]` | Everyone — the hub. List + item. Phase 1 modules live here (spec, ACs, interview, DoR, tasks, exports, cycle time). |
+| **Inbox** | `/inbox` | Admins only — approve/reject planner-app feature-request drafts. User management is a link inside Inbox (`/admin/users`), not a top-level tab. |
+
+A persistent floating AI chat bar (“Ask the AI Planner anything about the roadmap…”) stays on every authenticated page and is sent the current page/item as context.
+
 ## Run locally
 
 ```bash
@@ -45,26 +57,14 @@ Open [http://localhost:3000](http://localhost:3000) and sign in:
 | `npm test` | Vitest unit tests |
 | `npm run db:setup` | `prisma generate && db push && seed` |
 
-## Phase 1 — spec front door
+## Phase 1 — spec front door (inside Plan)
 
 On each plan item (`/plan/[id]`), below the original detail cards:
 
 1. **Spec interview** — AI asks clarifying questions (`POST /api/specs/[id]/interview`). Mock: answer normally, or type `done` to fill a build-ready spec.
-2. **Definition of Ready** — pure gate (`src/lib/gates/definitionOfReady.ts`). Handoff/decompose is blocked until problem, outcome, success metric, scope, non-goals, ACs, risks, and open questions pass. Missing checks render in the UI.
+2. **Definition of Ready** — pure gate (`src/lib/gates/definitionOfReady.ts`). Handoff/decompose is blocked until problem, outcome, success metric, scope, non-goals, ACs, risks, and open questions pass.
 3. **Decompose** — splits a ready spec into agent-sized tasks mapped to ACs.
 4. **Export** — OpenSpec markdown, Jira CSV/JSON, Gherkin `.feature`.
-5. **Cycle time** (`/cycle-time`) — ItemEvent status transitions.
-
-## Original screens (Phase 0)
-
-These match the pages that shipped in the incomplete tree, plus the missing modules they imported:
-
-- **Submit** (`/`) — inferred; the intake page that POSTs a raw request for AI shaping was not in the tree
-- **Inbox** (`/inbox`) — FR draft review, approve/reject (admin)
-- **Plan** (`/plan`) — ATL/BTL list, L0/L1/team filters, HTML slide export
-- **Item detail** (`/plan/[id]`) — inline edit, AI evaluate, status/priority/effort
-- **Users** (`/admin/users`) — role + L0/team assignment
-- **Planning Advisor** — bottom chat bar (component was missing; class `cl-bar-input` is required by item detail)
-- **Login** (`/login`) — inferred credentials screen replacing missing OAuth
+5. **Cycle time** — ItemEvent status transitions, as a Plan list module and on the item.
 
 See `CLAUDE.md` for architecture notes and what had to be inferred.

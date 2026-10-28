@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { computeCycleTime, formatDuration } from "@/lib/cycleTime";
 
 type Ac = { id?: string; given: string; when: string; then: string };
 type Task = { id: string; title: string; description: string; acId: string | null };
@@ -482,48 +483,101 @@ export function SpecWorkspace({
         ))}
       </div>
 
-      {/* Events */}
-      {events.length > 0 && (
-        <div
-          style={{
-            background: "#fff",
-            border: "1px solid #e2e8f0",
-            borderRadius: 12,
-            padding: "16px 18px",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              color: "#94a3b8",
-              letterSpacing: 0.8,
-              textTransform: "uppercase",
-              fontFamily: "var(--font-sans)",
-              marginBottom: 10,
-            }}
-          >
-            Status events
-          </div>
-          {events.map((e) => (
-            <div
-              key={e.id}
-              style={{
-                fontSize: 12,
-                fontFamily: "var(--font-sans)",
-                color: "#475569",
-                marginBottom: 4,
-              }}
-            >
-              {new Date(e.createdAt).toLocaleString()} — {e.fromStatus ?? "new"} → {e.toStatus ?? e.type}
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Cycle time */}
+      <CycleTimeModule events={events} />
 
       {error && (
         <div style={{ fontSize: 12, color: "#b91c1c", fontFamily: "var(--font-sans)" }}>{error}</div>
       )}
+    </div>
+  );
+}
+
+function CycleTimeModule({ events }: { events: EventRow[] }) {
+  const cycle = useMemo(
+    () =>
+      computeCycleTime(
+        events.filter((e) => e.type === "status_change" && e.toStatus)
+      ),
+    [events]
+  );
+
+  return (
+    <div
+      style={{
+        background: "#fff",
+        border: "1px solid #e2e8f0",
+        borderRadius: 12,
+        padding: "16px 18px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 10,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: "#94a3b8",
+            letterSpacing: 0.8,
+            textTransform: "uppercase",
+            fontFamily: "var(--font-sans)",
+          }}
+        >
+          Cycle time
+        </div>
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#1d4ed8",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          {formatDuration(cycle.totalMs)}
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: events.length ? 10 : 0 }}>
+        {cycle.segments.map((s, i) => (
+          <span
+            key={i}
+            style={{
+              fontSize: 11,
+              color: "#64748b",
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: 5,
+              padding: "2px 7px",
+              fontFamily: "var(--font-sans)",
+            }}
+          >
+            {s.status.replaceAll("_", " ")} {formatDuration(s.durationMs)}
+          </span>
+        ))}
+        {cycle.segments.length === 0 && (
+          <span style={{ fontSize: 12, color: "#94a3b8", fontFamily: "var(--font-sans)" }}>
+            No status transitions yet
+          </span>
+        )}
+      </div>
+      {events.map((e) => (
+        <div
+          key={e.id}
+          style={{
+            fontSize: 12,
+            fontFamily: "var(--font-sans)",
+            color: "#475569",
+            marginBottom: 4,
+          }}
+        >
+          {new Date(e.createdAt).toLocaleString()} — {e.fromStatus ?? "new"} → {e.toStatus ?? e.type}
+        </div>
+      ))}
     </div>
   );
 }

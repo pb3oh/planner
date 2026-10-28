@@ -56,8 +56,9 @@ export async function POST(req: NextRequest) {
   const { response } = await requireUser();
   if (response) return response;
 
-  const { messages } = (await req.json()) as {
+  const { messages, context } = (await req.json()) as {
     messages: { role: string; content: string }[];
+    context?: { pathname?: string; page?: string; itemId?: number | null };
   };
 
   const systemPrompt = await buildPlanContext();
@@ -72,8 +73,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "messages required" }, { status: 400 });
   }
 
+  const page = context?.page || context?.pathname || "unknown";
+  const pathname = context?.pathname || "";
+  let currentItem = "";
+  if (context?.itemId) {
+    const item = await prisma.item.findUnique({
+      where: { id: Number(context.itemId) },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        priority: true,
+        score: true,
+        effort: true,
+        description: true,
+        l0: { select: { name: true } },
+      },
+    });
+    if (item) {
+      currentItem = `[${item.id}] "${item.title}" status=${item.status} priority=${item.priority} score=${item.score} effort=${EFFORT_SHORT[item.effort] ?? "?"} l0=${item.l0?.name ?? "—"} desc=${(item.description || "").slice(0, 180)}`;
+    }
+  }
+
   const reply = await complete({
-    system: systemPrompt,
+    system: `${systemPrompt}
+
+CURRENT_VIEW: ${page} (${pathname})
+${currentItem ? `CURRENT_ITEM: ${currentItem}` : ""}
+
+If the user says "this item", "this page", or "here", use CURRENT_VIEW / CURRENT_ITEM as the subject.`,
     messages: normalized,
   });
 

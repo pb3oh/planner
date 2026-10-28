@@ -21,3 +21,15 @@ export async function requireUser() {
 export function isAdmin(role?: string | null): boolean {
   return role === "admin" || role === "super_admin";
 }
+
+export async function requireAdmin() {
+  const { user, response } = await requireUser();
+  if (response || !user) return { user: null, response };
+  if (!isAdmin(user.role)) {
+    return {
+      user,
+      response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    };
+  }
+  return { user, response: null };
+}

@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { Wordmark } from "@/components/Wordmark";
 
 function LoginForm() {
   const router = useRouter();
@@ -17,7 +18,7 @@ function LoginForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const callbackUrl = params.get("callbackUrl") || "/plan";
+    const callbackUrl = params.get("callbackUrl") || "/";
     const res = await signIn("credentials", {
       email,
       password,
@@ -54,7 +55,9 @@ function LoginForm() {
           fontFamily: "var(--font-sans)",
         }}
       >
-        <div style={{ fontSize: 20, fontWeight: 700, color: "#0f172a" }}>Planner</div>
+        <div style={{ marginBottom: 8 }}>
+          <Wordmark />
+        </div>
         <p style={{ fontSize: 13, color: "#64748b", margin: "6px 0 20px" }}>
           Sign in with a seeded local account. No OAuth required.
         </p>

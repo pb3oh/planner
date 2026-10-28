@@ -3,13 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-
-const LINKS = [
-  { href: "/", label: "Submit" },
-  { href: "/inbox", label: "Inbox" },
-  { href: "/plan", label: "Plan" },
-  { href: "/cycle-time", label: "Cycle time" },
-];
+import { Wordmark } from "@/components/Wordmark";
 
 export function Nav() {
   const pathname = usePathname();
@@ -20,51 +14,56 @@ export function Nav() {
   const isAdmin =
     session?.user?.role === "admin" || session?.user?.role === "super_admin";
 
+  const links = [
+    { href: "/", label: "Request Work", match: (p: string) => p === "/" },
+    {
+      href: "/plan",
+      label: "Plan",
+      match: (p: string) => p === "/plan" || p.startsWith("/plan/"),
+    },
+    ...(isAdmin
+      ? [
+          {
+            href: "/inbox",
+            label: "Inbox",
+            match: (p: string) => p.startsWith("/inbox") || p.startsWith("/admin"),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <header
       style={{
-        height: 52,
+        height: 56,
         background: "#fff",
-        borderBottom: "1px solid #e2e8f0",
+        borderBottom: "1px solid #f1f5f9",
         display: "flex",
         alignItems: "center",
         padding: "0 20px",
-        gap: 18,
+        gap: 22,
         flexShrink: 0,
         zIndex: 20,
       }}
     >
-      <Link
-        href="/plan"
-        style={{
-          fontSize: 14,
-          fontWeight: 700,
-          color: "#0f172a",
-          textDecoration: "none",
-          fontFamily: "var(--font-sans)",
-          letterSpacing: -0.2,
-        }}
-      >
-        Planner
+      <Link href="/" style={{ textDecoration: "none", flexShrink: 0 }}>
+        <Wordmark />
       </Link>
 
-      <nav style={{ display: "flex", gap: 4, alignItems: "center" }}>
-        {LINKS.map((l) => {
-          const active =
-            l.href === "/"
-              ? pathname === "/"
-              : pathname === l.href || pathname.startsWith(l.href + "/");
+      <nav style={{ display: "flex", gap: 2, alignItems: "center" }}>
+        {links.map((l) => {
+          const active = l.match(pathname);
           return (
             <Link
               key={l.href}
               href={l.href}
               style={{
-                padding: "5px 10px",
-                borderRadius: 6,
+                padding: "6px 12px",
+                borderRadius: 8,
                 fontSize: 13,
                 fontWeight: active ? 600 : 500,
-                color: active ? "#1d4ed8" : "#64748b",
-                background: active ? "#eff6ff" : "transparent",
+                color: active ? "#0f172a" : "#64748b",
+                background: active ? "#f1f5f9" : "transparent",
                 textDecoration: "none",
                 fontFamily: "var(--font-sans)",
               }}
@@ -73,27 +72,10 @@ export function Nav() {
             </Link>
           );
         })}
-        {isAdmin && (
-          <Link
-            href="/admin/users"
-            style={{
-              padding: "5px 10px",
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: pathname.startsWith("/admin") ? 600 : 500,
-              color: pathname.startsWith("/admin") ? "#1d4ed8" : "#64748b",
-              background: pathname.startsWith("/admin") ? "#eff6ff" : "transparent",
-              textDecoration: "none",
-              fontFamily: "var(--font-sans)",
-            }}
-          >
-            Users
-          </Link>
-        )}
       </nav>
 
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-        {status === "authenticated" && (
+        {status === "authenticated" && session?.user ? (
           <>
             <span
               style={{
@@ -107,8 +89,8 @@ export function Nav() {
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
               style={{
-                padding: "4px 10px",
-                borderRadius: 6,
+                padding: "6px 12px",
+                borderRadius: 8,
                 fontSize: 12,
                 fontWeight: 600,
                 background: "transparent",
@@ -121,7 +103,23 @@ export function Nav() {
               Sign out
             </button>
           </>
-        )}
+        ) : status === "unauthenticated" ? (
+          <Link
+            href="/login"
+            style={{
+              padding: "7px 14px",
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              background: "#2563eb",
+              color: "#fff",
+              textDecoration: "none",
+              fontFamily: "var(--font-sans)",
+            }}
+          >
+            Sign in
+          </Link>
+        ) : null}
       </div>
     </header>
   );

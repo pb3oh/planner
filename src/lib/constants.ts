@@ -1,6 +1,10 @@
 export const CLAUDE_MODEL =
   process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5-20250929";
 
+export const APP_NAME = "Planner";
+export const APP_TAGLINE = "Dependency Planner";
+export const APP_VERSION = "3.0.0";
+
 export const EFFORT_SHORT: Record<number, string> = {
   1: "XS",
   2: "S",
