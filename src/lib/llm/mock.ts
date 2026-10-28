@@ -7,7 +7,16 @@ function lastUser(messages: ChatMessage[]): string {
 
 function section(system: string | undefined, label: string): string {
   if (!system) return "";
-  const re = new RegExp(`${label}:\\s*([\\s\\S]*?)(?:\\n[A-Z0-9_]+:|$)`);
+  const json = system.match(new RegExp(`${label}:\\s*(\\{[\\s\\S]*?\\n?\\})`));
+  if (json?.[1]?.trim().startsWith("{")) {
+    try {
+      JSON.parse(json[1]);
+      return json[1].trim();
+    } catch {
+      /* fall through */
+    }
+  }
+  const re = new RegExp(`${label}:\\s*([\\s\\S]*?)(?:\\n[A-Z][A-Z0-9_]+:|\\nReturn |$)`);
   return (system.match(re)?.[1] ?? "").trim();
 }
 
