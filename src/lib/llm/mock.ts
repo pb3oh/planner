@@ -88,7 +88,7 @@ function interviewReply(system: string | undefined, user: string): string {
     acs: "Give 2–3 acceptance criteria as Given / When / Then.",
   };
 
-  if (!next) {
+  if (!next || /^(done|make it ready|complete|looks good)\b/i.test(user.trim())) {
     return JSON.stringify({
       type: "complete",
       spec: {

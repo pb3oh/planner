@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/", label: "Submit" },
   { href: "/inbox", label: "Inbox" },
   { href: "/plan", label: "Plan" },
+  { href: "/cycle-time", label: "Cycle time" },
 ];
 
 export function Nav() {

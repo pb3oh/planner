@@ -545,6 +545,85 @@ async function main() {
     });
   }
 
+  console.log("Seeding specs…");
+  const ssoReady = {
+    status: "ready" as const,
+    problem:
+      "Organization admins cannot require SSO, so contractors share passwords across workspaces.",
+    outcome: "Admins can enforce SSO for every member of a workspace.",
+    successMetric: "80% of enterprise orgs on SSO within 60 days of GA",
+    scope: "OIDC SSO enforce plus session timeout for members.",
+    nonGoals: "No SCIM provisioning and no IdP-initiated logout in this slice.",
+    constraints: "Must work with the existing session cookie.",
+    risks: ["IdP variance across customers"],
+    openQuestions: [] as string[],
+    readyAt: new Date("2026-04-10"),
+  };
+  const sso = await prisma.spec.upsert({
+    where: { itemId: 1001 },
+    update: ssoReady,
+    create: { itemId: 1001, ...ssoReady },
+  });
+  if ((await prisma.acceptanceCriterion.count({ where: { specId: sso.id } })) === 0) {
+    await prisma.acceptanceCriterion.createMany({
+      data: [
+        {
+          specId: sso.id,
+          sortOrder: 0,
+          given: "an org admin with OIDC configured",
+          when: "they require SSO for members",
+          then: "password login is rejected for members of that org",
+        },
+        {
+          specId: sso.id,
+          sortOrder: 1,
+          given: "a member of an SSO-enforced org",
+          when: "their IdP session expires",
+          then: "they are prompted to re-authenticate via the IdP",
+        },
+      ],
+    });
+  }
+
+  await prisma.spec.upsert({
+    where: { itemId: 1003 },
+    update: {},
+    create: {
+      itemId: 1003,
+      status: "interviewing",
+      problem: "Security reviewers cannot pull workspace audit events into a SIEM.",
+      outcome: "",
+      successMetric: "",
+      scope: "",
+      nonGoals: "",
+      risks: [],
+      openQuestions: ["Which event types are in v1?"],
+    },
+  });
+
+  console.log("Seeding item events…");
+  const eventCount = await prisma.itemEvent.count();
+  if (eventCount === 0) {
+    const rows: {
+      itemId: number;
+      type: string;
+      fromStatus: string | null;
+      toStatus: string;
+      createdAt: Date;
+    }[] = [
+      { itemId: 1001, type: "status_change", fromStatus: null, toStatus: "Needs_Review", createdAt: new Date("2026-03-20") },
+      { itemId: 1001, type: "status_change", fromStatus: "Needs_Review", toStatus: "Accepted", createdAt: new Date("2026-03-28") },
+      { itemId: 1001, type: "status_change", fromStatus: "Accepted", toStatus: "In_Progress", createdAt: new Date("2026-04-14") },
+      { itemId: 1002, type: "status_change", fromStatus: null, toStatus: "Needs_Review", createdAt: new Date("2026-04-02") },
+      { itemId: 1002, type: "status_change", fromStatus: "Needs_Review", toStatus: "Planned", createdAt: new Date("2026-04-20") },
+      { itemId: 1005, type: "status_change", fromStatus: null, toStatus: "Needs_Review", createdAt: new Date("2026-04-22") },
+      { itemId: 1005, type: "status_change", fromStatus: "Needs_Review", toStatus: "Accepted", createdAt: new Date("2026-04-24") },
+    ];
+    for (const row of rows) {
+      await prisma.itemEvent.create({ data: row });
+    }
+  }
+
   console.log("Seeding drafts…");
   const existingDrafts = await prisma.fRDraft.count();
   if (existingDrafts === 0) {

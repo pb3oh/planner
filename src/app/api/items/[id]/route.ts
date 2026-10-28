@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logItemEvent } from "@/lib/events";
 import { requireUser } from "@/lib/session";
+import { getOrCreateSpec, specToDor } from "@/lib/specs";
 import type { ItemStatus, Priority } from "@prisma/client";
 
 const ITEM_INCLUDE = {
@@ -22,18 +24,25 @@ export async function GET(
   }
   const item = await prisma.item.findUnique({
     where: { id: itemId },
-    include: ITEM_INCLUDE,
+    include: {
+      ...ITEM_INCLUDE,
+      events: { orderBy: { createdAt: "asc" } },
+    },
   });
   if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(item);
+  const spec = await getOrCreateSpec(itemId);
+  return NextResponse.json({
+    ...item,
+    spec: spec ? { ...spec, dor: specToDor(spec) } : null,
+  });
 }
 
 export async function PATCH(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  const { response } = await requireUser();
-  if (response) return response;
+  const { user, response } = await requireUser();
+  if (response || !user) return response;
   const { id } = await ctx.params;
   const itemId = Number(id);
   if (!Number.isFinite(itemId)) {
@@ -78,10 +87,27 @@ export async function PATCH(
   if (typeof data.status === "string") data.status = data.status as ItemStatus;
   if (typeof data.priority === "string") data.priority = data.priority as Priority;
 
+  const before = await prisma.item.findUnique({ where: { id: itemId } });
   const item = await prisma.item.update({
     where: { id: itemId },
     data,
-    include: ITEM_INCLUDE,
+    include: {
+      ...ITEM_INCLUDE,
+      events: { orderBy: { createdAt: "asc" } },
+    },
   });
-  return NextResponse.json(item);
+  if (before && typeof data.status === "string" && data.status !== before.status) {
+    await logItemEvent({
+      itemId,
+      type: "status_change",
+      fromStatus: before.status,
+      toStatus: String(data.status),
+      actorEmail: user.email,
+    });
+  }
+  const spec = await getOrCreateSpec(itemId);
+  return NextResponse.json({
+    ...item,
+    spec: spec ? { ...spec, dor: specToDor(spec) } : null,
+  });
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logItemEvent } from "@/lib/events";
 import { isAdmin, requireUser } from "@/lib/session";
 import { effortFromLabel, todayIso } from "@/lib/utils";
 import type { DraftStatus, Priority } from "@prisma/client";
@@ -50,7 +51,7 @@ export async function PATCH(
       const priority = (["P0", "P1", "P2", "P3"].includes(existing.priority)
         ? existing.priority
         : "P2") as Priority;
-      await prisma.item.create({
+      const created = await prisma.item.create({
         data: {
           title: existing.title || "Untitled request",
           description:
@@ -64,6 +65,21 @@ export async function PATCH(
           submittedAt: todayIso(),
           l0Id: defaultL0.id,
         },
+      });
+      await prisma.spec.create({
+        data: {
+          itemId: created.id,
+          problem: existing.problemStatement || existing.rawRequest,
+          outcome: existing.proposedSolution || existing.whoItHelps,
+          successMetric: existing.successMetric,
+        },
+      });
+      await logItemEvent({
+        itemId: created.id,
+        type: "status_change",
+        fromStatus: null,
+        toStatus: "Needs_Review",
+        actorEmail: actor,
       });
     }
   }

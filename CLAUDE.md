@@ -12,7 +12,10 @@ Intake layer in front of a spec-driven build pipeline:
 2. LLM shapes an FR draft
 3. Admin reviews in `/inbox` (approve creates a plan `Item`)
 4. `/plan` + `/plan/[id]` for scoring, scheduling, AI evaluation
-5. (Phase 1) spec interview → Definition-of-Ready → decompose → export
+5. Spec interview → Definition-of-Ready gate → decompose into tasks → export (OpenSpec / Jira / Gherkin)
+6. ItemEvent log → cycle time view
+
+DoR, exporters, and cycle-time math are pure functions under `src/lib/` with Vitest coverage. Do not put Prisma inside those modules.
 
 ## Layout
 

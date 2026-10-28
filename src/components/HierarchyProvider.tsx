@@ -22,7 +22,6 @@ export function HierarchyProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (status !== "authenticated") return;
     let cancelled = false;
-    setLoading(true);
     fetch("/api/hierarchy")
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => {

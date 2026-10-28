@@ -164,11 +164,95 @@ model Item {
   l1   L1?   @relation(fields: [l1Id], references: [id])
   team Team? @relation(fields: [teamId], references: [id])
 
+  spec   Spec?
+  events ItemEvent[]
+
   @@index([l0Id])
   @@index([l1Id])
   @@index([teamId])
   @@index([status])
   @@index([btl])
+}
+
+enum SpecStatus {
+  drafting
+  interviewing
+  ready
+  handed_off
+}
+
+model Spec {
+  id     String     @id @default(cuid())
+  itemId Int        @unique
+  item   Item       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  status SpecStatus @default(drafting)
+
+  problem       String @default("") @db.Text
+  outcome       String @default("") @db.Text
+  successMetric String @default("") @db.Text
+  scope         String @default("") @db.Text
+  nonGoals      String @default("") @db.Text
+  constraints   String @default("") @db.Text
+  risks         String[]
+  openQuestions String[]
+
+  readyAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  acceptanceCriteria AcceptanceCriterion[]
+  tasks              Task[]
+  interviewTurns     InterviewTurn[]
+}
+
+model AcceptanceCriterion {
+  id        String @id @default(cuid())
+  specId    String
+  spec      Spec   @relation(fields: [specId], references: [id], onDelete: Cascade)
+  given     String @default("")
+  when      String @default("")
+  then      String @default("")
+  sortOrder Int    @default(0)
+
+  tasks Task[]
+}
+
+model Task {
+  id          String  @id @default(cuid())
+  specId      String
+  spec        Spec    @relation(fields: [specId], references: [id], onDelete: Cascade)
+  acId        String?
+  ac          AcceptanceCriterion? @relation(fields: [acId], references: [id], onDelete: SetNull)
+  title       String
+  description String  @default("") @db.Text
+  sortOrder   Int     @default(0)
+  status      String  @default("todo")
+}
+
+model InterviewTurn {
+  id        String   @id @default(cuid())
+  specId    String
+  spec      Spec     @relation(fields: [specId], references: [id], onDelete: Cascade)
+  role      String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([specId])
+}
+
+model ItemEvent {
+  id         String   @id @default(cuid())
+  itemId     Int
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  type       String
+  fromStatus String?
+  toStatus   String?
+  actorEmail String?
+  createdAt  DateTime @default(now())
+
+  @@index([itemId])
+  @@index([createdAt])
 }
 
 // ── Feature Request Drafts ────────────────────────────────────────────────────

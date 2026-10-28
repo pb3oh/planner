@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { ScoreRing } from "@/components/ui/ScoreRing";
 import { L0Tag } from "@/components/ui/L0Tag";
+import { SpecWorkspace } from "@/components/spec/SpecWorkspace";
 import { useHierarchy } from "@/hooks/useHierarchy";
 import { EFFORT_WEEKS, STATUS_LABEL, PRIORITY_META, REPROMPT_FIELDS } from "@/lib/constants";
 import { fmt } from "@/lib/utils";
@@ -18,6 +19,7 @@ type Item = {
   effortRationale: string; effortConfirmed: boolean;
   startDate: string | null; endDate: string | null; jiraId: string | null;
   submittedAt: string | null;
+  events?: { id: string; type: string; fromStatus: string | null; toStatus: string | null; createdAt: string }[];
 };
 
 const STATUS_ORDER = ["Needs_Review", "Accepted", "In_Progress", "Planned", "Backlog", "Out_of_Scope", "Blocked"];
@@ -426,6 +428,8 @@ export default function ItemDetailPage() {
           </button>
         </div>
       </div>
+
+      <SpecWorkspace itemId={item.id} events={item.events ?? []} />
     </div>
   );
 }

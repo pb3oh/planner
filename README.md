@@ -45,6 +45,16 @@ Open [http://localhost:3000](http://localhost:3000) and sign in:
 | `npm test` | Vitest unit tests |
 | `npm run db:setup` | `prisma generate && db push && seed` |
 
+## Phase 1 — spec front door
+
+On each plan item (`/plan/[id]`), below the original detail cards:
+
+1. **Spec interview** — AI asks clarifying questions (`POST /api/specs/[id]/interview`). Mock: answer normally, or type `done` to fill a build-ready spec.
+2. **Definition of Ready** — pure gate (`src/lib/gates/definitionOfReady.ts`). Handoff/decompose is blocked until problem, outcome, success metric, scope, non-goals, ACs, risks, and open questions pass. Missing checks render in the UI.
+3. **Decompose** — splits a ready spec into agent-sized tasks mapped to ACs.
+4. **Export** — OpenSpec markdown, Jira CSV/JSON, Gherkin `.feature`.
+5. **Cycle time** (`/cycle-time`) — ItemEvent status transitions.
+
 ## Original screens (Phase 0)
 
 These match the pages that shipped in the incomplete tree, plus the missing modules they imported:
